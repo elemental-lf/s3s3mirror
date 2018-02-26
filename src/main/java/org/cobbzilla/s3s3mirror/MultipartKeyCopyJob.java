@@ -10,8 +10,8 @@ import java.util.List;
 @Slf4j
 public class MultipartKeyCopyJob extends KeyCopyJob {
 
-    public MultipartKeyCopyJob(AmazonS3Client client, MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
-        super(client, context, summary, notifyLock);
+    public MultipartKeyCopyJob(MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
+        super(context, summary, notifyLock);
     }
 
     @Override
@@ -34,7 +34,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
             initiateRequest.withAccessControlList(objectAcl);
         }
 
-        InitiateMultipartUploadResult initResult = client.initiateMultipartUpload(initiateRequest);
+        InitiateMultipartUploadResult initResult = context.getDestinationClient().initiateMultipartUpload(initiateRequest);
 
         long partSize = options.getUploadPartSize();
         long bytePosition = 0;
@@ -59,13 +59,13 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                 try {
                     if (options.isVerbose()) log.info("try :" + tries);
                     context.getStats().s3copyCount.incrementAndGet();
-                    CopyPartResult copyPartResult = client.copyPart(copyRequest);
+                    CopyPartResult copyPartResult = context.getDestinationClient().copyPart(copyRequest);
                     copyResponses.add(copyPartResult);
                     if (options.isVerbose()) log.info("completed " + infoMessage);
                     break;
                 } catch (Exception e) {
                     if (tries == maxPartRetries) {
-                        client.abortMultipartUpload(new AbortMultipartUploadRequest(
+                        context.getDestinationClient().abortMultipartUpload(new AbortMultipartUploadRequest(
                                 targetBucketName, keydest, initResult.getUploadId()));
                         log.error("Exception while doing multipart copy", e);
                         return false;
@@ -76,7 +76,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
         }
         CompleteMultipartUploadRequest completeRequest = new CompleteMultipartUploadRequest(targetBucketName, keydest,
                 initResult.getUploadId(), getETags(copyResponses));
-        client.completeMultipartUpload(completeRequest);
+        context.getDestinationClient().completeMultipartUpload(completeRequest);
         if(options.isVerbose()) {
             log.info("completed multipart request for : " + summary.getKey());
         }

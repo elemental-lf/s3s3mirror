@@ -115,8 +115,8 @@ public class MirrorMainTest {
         final String proxy = "localhost:8080";
         final MirrorMain main = new MirrorMain(new String[]{MirrorOptions.OPT_PROXY, proxy, SOURCE, DESTINATION});
 
-        main.getOptions().setAWSAccessKeyId("accessKey");
-        main.getOptions().setAWSSecretKey("secretKey");
+        main.getOptions().getSourceCredentials().setAWSAccessKeyId("accessKey");
+        main.getOptions().getSourceCredentials().setAWSSecretKey("secretKey");
         main.parseArguments();
         assertEquals("localhost", main.getOptions().getProxyHost());
         assertEquals(8080, main.getOptions().getProxyPort());
@@ -131,8 +131,8 @@ public class MirrorMainTest {
 
     private void testInvalidProxySetting(String proxy) throws Exception {
         final MirrorMain main = new MirrorMain(new String[]{MirrorOptions.OPT_PROXY, proxy, SOURCE, DESTINATION});
-        main.getOptions().setAWSAccessKeyId("accessKey");
-        main.getOptions().setAWSSecretKey("secretKey");
+        main.getOptions().getSourceCredentials().setAWSAccessKeyId("accessKey");
+        main.getOptions().getSourceCredentials().setAWSSecretKey("secretKey");
         try {
             main.parseArguments();
             fail("Invalid proxy setting ("+proxy+") should have thrown exception");

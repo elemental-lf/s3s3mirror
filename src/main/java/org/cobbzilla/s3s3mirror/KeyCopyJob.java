@@ -15,8 +15,8 @@ public class KeyCopyJob extends KeyJob {
 
     protected String keydest;
 
-    public KeyCopyJob(AmazonS3Client client, MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
-        super(client, context, summary, notifyLock);
+    public KeyCopyJob(MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
+        super(context, summary, notifyLock);
 
         keydest = summary.getKey();
         final MirrorOptions options = context.getOptions();
@@ -34,8 +34,8 @@ public class KeyCopyJob extends KeyJob {
         final String key = summary.getKey();
         try {
             if (!shouldTransfer()) return;
-            final ObjectMetadata sourceMetadata = getObjectMetadata(options.getSourceBucket(), key, options);
-            final AccessControlList objectAcl = getAccessControlList(options, key);
+            final ObjectMetadata sourceMetadata = getSourceObjectMetadata(options.getSourceBucket(), key, options);
+            final AccessControlList objectAcl = getSourceAccessControlList(options, key);
 
             if (options.isDryRun()) {
                 log.info("Would have copied " + key + " to destination: " + keydest);
@@ -74,14 +74,14 @@ public class KeyCopyJob extends KeyJob {
 			}
             
             request.setNewObjectMetadata(sourceMetadata);
-            if (options.isCrossAccountCopy()) {
+            if (options.isCrossAccountCopy() || context.getSourceClient() != context.getDestinationClient()) {
                 request.setCannedAccessControlList(CannedAccessControlList.BucketOwnerFullControl);
             } else {
                 request.setAccessControlList(objectAcl);
             }
             try {
                 stats.s3copyCount.incrementAndGet();
-                client.copyObject(request);
+                context.getDestinationClient().copyObject(request);
                 stats.bytesCopied.addAndGet(sourceMetadata.getContentLength());
                 if (verbose) log.info("successfully copied (on try #" + tries + "): " + key + " to: " + keydest);
                 return true;
@@ -119,7 +119,7 @@ public class KeyCopyJob extends KeyJob {
         }
         final ObjectMetadata metadata;
         try {
-            metadata = getObjectMetadata(options.getDestinationBucket(), keydest, options);
+            metadata = getDestinationObjectMetadata(options.getDestinationBucket(), keydest, options);
         } catch (AmazonS3Exception e) {
             if (e.getStatusCode() == 404) {
                 if (verbose) log.info("Key not found in destination bucket (will copy): "+ keydest);

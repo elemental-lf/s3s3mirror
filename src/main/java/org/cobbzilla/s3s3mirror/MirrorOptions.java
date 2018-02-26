@@ -1,7 +1,5 @@
 package org.cobbzilla.s3s3mirror;
 
-import com.amazonaws.auth.AWSCredentials;
-
 import lombok.Getter;
 import lombok.Setter;
 import org.joda.time.DateTime;
@@ -12,16 +10,9 @@ import java.util.Date;
 
 import static org.cobbzilla.s3s3mirror.MirrorConstants.*;
 
-public class MirrorOptions implements AWSCredentials {
+public class MirrorOptions {
 
     public static final String S3_PROTOCOL_PREFIX = "s3://";
-
-    public static final String AWS_ACCESS_KEY = "AWS_ACCESS_KEY_ID";
-    public static final String AWS_SECRET_KEY = "AWS_SECRET_ACCESS_KEY";
-    @Getter @Setter private String aWSAccessKeyId = System.getenv().get(AWS_ACCESS_KEY);
-    @Getter @Setter private String aWSSecretKey = System.getenv().get(AWS_SECRET_KEY);
-
-    public boolean hasAwsKeys() { return aWSAccessKeyId != null && aWSSecretKey != null; }
 
     public static final String USAGE_USE_IAM_ROLE = "Use IAM role from EC2 instance, can only be used in AWS";
     public static final String OPT_USE_IAM_ROLE = "-i";
@@ -29,11 +20,17 @@ public class MirrorOptions implements AWSCredentials {
     @Option(name=OPT_USE_IAM_ROLE, aliases=LONGOPT_USE_IAM_ROLE, usage=USAGE_USE_IAM_ROLE)
     @Getter @Setter private boolean useIamRole = false;
 
-    public static final String USAGE_PROFILE= "Use a specific profile from your credential file (~/.aws/config)";
-    public static final String OPT_PROFILE= "-P";
-    public static final String LONGOPT_PROFILE = "--profile";
-    @Option(name=OPT_PROFILE, aliases=LONGOPT_PROFILE, usage=USAGE_PROFILE)
-    @Getter @Setter private String profile = null;
+    public static final String USAGE_SOURCE_PROFILE= "Profile used for source side (from ~/.s3cfg)";
+    public static final String OPT_SOURCE_PROFILE= "-Y";
+    public static final String LONGOPT_SOURCE_PROFILE = "--source-profile";
+    @Option(name=OPT_SOURCE_PROFILE, aliases=LONGOPT_SOURCE_PROFILE, usage=USAGE_SOURCE_PROFILE)
+    @Getter @Setter private String sourceProfile = null;
+    
+    public static final String USAGE_DESTINATION_PROFILE= "Profile used for destination side (from ~/.s3cfg)";
+    public static final String OPT_DESTINATION_PROFILE= "-Z";
+    public static final String LONGOPT_DESTINATION_PROFILE = "--destination-profile";
+    @Option(name=OPT_DESTINATION_PROFILE, aliases=LONGOPT_DESTINATION_PROFILE, usage=USAGE_DESTINATION_PROFILE)
+    @Getter @Setter private String destinationProfile = null;
 
     public static final String USAGE_DRY_RUN = "Do not actually do anything, but show what would be done";
     public static final String OPT_DRY_RUN = "-n";
@@ -218,6 +215,9 @@ public class MirrorOptions implements AWSCredentials {
     private static final String LONGOPT_CROSS_ACCOUNT_COPY = "--cross-account-copy";
     @Option(name=OPT_CROSS_ACCOUNT_COPY, aliases=LONGOPT_CROSS_ACCOUNT_COPY, usage=CROSS_ACCOUNT_USAGE)
     @Getter @Setter private boolean crossAccountCopy = false;
+    
+    @Getter private MirrorCredentials sourceCredentials = new MirrorCredentials();
+    @Getter @Setter private MirrorCredentials destinationCredentials = new MirrorCredentials();
 
     public void initDerivedFields() {
 

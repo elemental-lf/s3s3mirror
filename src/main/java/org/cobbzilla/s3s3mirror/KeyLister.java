@@ -14,7 +14,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 public class KeyLister implements Runnable {
 
-    private AmazonS3Client client;
     private MirrorContext context;
     private int maxQueueCapacity;
 
@@ -24,8 +23,7 @@ public class KeyLister implements Runnable {
 
     public boolean isDone () { return done.get(); }
 
-    public KeyLister(AmazonS3Client client, MirrorContext context, int maxQueueCapacity, String bucket, String prefix) {
-        this.client = client;
+    public KeyLister(MirrorContext context, int maxQueueCapacity, String bucket, String prefix) {
         this.context = context;
         this.maxQueueCapacity = maxQueueCapacity;
 
@@ -34,7 +32,7 @@ public class KeyLister implements Runnable {
         this.summaries = new ArrayList<S3ObjectSummary>(10*fetchSize);
 
         final ListObjectsRequest request = new ListObjectsRequest(bucket, prefix, null, null, fetchSize);
-        listing = s3getFirstBatch(client, request);
+        listing = s3getFirstBatch(context.getSourceClient(), request);
         synchronized (summaries) {
             final List<S3ObjectSummary> objectSummaries = listing.getObjectSummaries();
             summaries.addAll(objectSummaries);
@@ -117,7 +115,7 @@ public class KeyLister implements Runnable {
         for (int tries=0; tries<maxRetries; tries++) {
             try {
                 context.getStats().s3getCount.incrementAndGet();
-                ObjectListing next = client.listNextBatchOfObjects(listing);
+                ObjectListing next = context.getSourceClient().listNextBatchOfObjects(listing);
                 if (verbose) log.info("successfully got next batch of objects (on try #"+tries+")");
                 return next;
 

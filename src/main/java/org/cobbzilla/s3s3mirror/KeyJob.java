@@ -10,13 +10,11 @@ import org.slf4j.Logger;
 
 public abstract class KeyJob implements Runnable {
 
-    protected final AmazonS3Client client;
     protected final MirrorContext context;
     protected final S3ObjectSummary summary;
     protected final Object notifyLock;
 
-    public KeyJob(AmazonS3Client client, MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
-        this.client = client;
+    public KeyJob(MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
         this.context = context;
         this.summary = summary;
         this.notifyLock = notifyLock;
@@ -26,7 +24,7 @@ public abstract class KeyJob implements Runnable {
 
     @Override public String toString() { return summary.getKey(); }
 
-    protected ObjectMetadata getObjectMetadata(String bucket, String key, MirrorOptions options) throws Exception {
+    protected ObjectMetadata getObjectMetadata(AmazonS3Client client, String bucket, String key, MirrorOptions options) throws Exception {
         Exception ex = null;
         for (int tries=0; tries<options.getMaxRetries(); tries++) {
             try {
@@ -50,8 +48,16 @@ public abstract class KeyJob implements Runnable {
         }
         throw ex;
     }
+    
+    protected ObjectMetadata getSourceObjectMetadata(String bucket, String key, MirrorOptions options) throws Exception {
+    	return this.getObjectMetadata(context.getSourceClient(), bucket, key, options);
+    }
 
-    protected AccessControlList getAccessControlList(MirrorOptions options, String key) throws Exception {
+    protected ObjectMetadata getDestinationObjectMetadata(String bucket, String key, MirrorOptions options) throws Exception {
+    	return this.getObjectMetadata(context.getDestinationClient(), bucket, key, options);
+    }     
+
+    protected AccessControlList getAccessControlList(AmazonS3Client client, MirrorOptions options, String key) throws Exception {
         Exception ex = null;
 
         for (int tries=0; tries<=options.getMaxRetries(); tries++) {
@@ -69,7 +75,7 @@ public abstract class KeyJob implements Runnable {
                     // objects since although they live in your bucket, the object owner is AWS.
                     getLog().warn("Unable to obtain object ACL, copying item without ACL data.");
                     return new AccessControlList();
-		}
+                }
 
                 if (options.isVerbose()) {
                    if (tries >= options.getMaxRetries()) {
@@ -83,5 +89,12 @@ public abstract class KeyJob implements Runnable {
         }
         throw ex;
     }
+    
+    protected AccessControlList getSourceAccessControlList(MirrorOptions options, String key) throws Exception {
+    	return this.getAccessControlList(context.getSourceClient(), options, key);
+    }
 
+    protected AccessControlList getDestinationAccessControlList(MirrorOptions options, String key) throws Exception {
+    	return this.getAccessControlList(context.getDestinationClient(), options, key);
+    }
 }

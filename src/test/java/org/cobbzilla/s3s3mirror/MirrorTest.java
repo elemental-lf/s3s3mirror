@@ -32,7 +32,7 @@ public class MirrorTest {
     private MirrorMain main = null;
 
     private TestFile createTestFile(String key, Copy copy, Clean clean) throws Exception {
-        return TestFile.create(key, main.getClient(), stuffToCleanup, copy, clean);
+        return TestFile.create(key, main.getSourceClient(), stuffToCleanup, copy, clean);
     }
 
     public static String random(int size) {
@@ -51,7 +51,7 @@ public class MirrorTest {
     public void cleanupS3Assets () {
         // Every individual test *must* initialize the "main" instance variable, otherwise NPE gets thrown here.
         if (checkEnvs()) {
-            AmazonS3Client client = main.getClient();
+            AmazonS3Client client = main.getSourceClient();
             for (S3Asset asset : stuffToCleanup) {
                 try {
                     log.info("cleanupS3Assets: deleting "+asset);
@@ -94,7 +94,7 @@ public class MirrorTest {
         assertEquals(1, main.getContext().getStats().objectsCopied.get());
         assertEquals(testFile.data.length(), main.getContext().getStats().bytesCopied.get());
 
-        final ObjectMetadata metadata = main.getClient().getObjectMetadata(DESTINATION, key);
+        final ObjectMetadata metadata = main.getSourceClient().getObjectMetadata(DESTINATION, key);
         assertEquals(testFile.data.length(), metadata.getContentLength());
     }
 
@@ -128,7 +128,7 @@ public class MirrorTest {
         assertEquals(1, main.getContext().getStats().objectsCopied.get());
         assertEquals(testFile.data.length(), main.getContext().getStats().bytesCopied.get());
 
-        final ObjectMetadata metadata = main.getClient().getObjectMetadata(DESTINATION, destKey);
+        final ObjectMetadata metadata = main.getDestinationClient().getObjectMetadata(DESTINATION, destKey);
         assertEquals(testFile.data.length(), metadata.getContentLength());
     }
 
@@ -165,7 +165,7 @@ public class MirrorTest {
         // Expect none of the original dest files to be there anymore
         for (int i=0; i<numDestFiles; i++) {
             try {
-                main.getClient().getObjectMetadata(DESTINATION, destKeys[i]);
+                main.getSourceClient().getObjectMetadata(DESTINATION, destKeys[i]);
                 fail("testDeleteRemoved: expected "+destKeys[i]+" to be removed from destination bucket "+DESTINATION);
             } catch (AmazonS3Exception e) {
                 if (e.getStatusCode() != 404) {
@@ -176,10 +176,10 @@ public class MirrorTest {
 
         // Expect source file to now be present in both source and destination buckets
         ObjectMetadata metadata;
-        metadata = main.getClient().getObjectMetadata(SOURCE, srcKey);
+        metadata = main.getSourceClient().getObjectMetadata(SOURCE, srcKey);
         assertEquals(srcFile.data.length(), metadata.getContentLength());
 
-        metadata = main.getClient().getObjectMetadata(DESTINATION, srcKey);
+        metadata = main.getSourceClient().getObjectMetadata(DESTINATION, srcKey);
         assertEquals(srcFile.data.length(), metadata.getContentLength());
     }
 

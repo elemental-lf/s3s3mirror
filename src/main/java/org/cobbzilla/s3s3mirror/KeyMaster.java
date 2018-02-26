@@ -1,6 +1,5 @@
 package org.cobbzilla.s3s3mirror;
 
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import lombok.extern.slf4j.Slf4j;
 
@@ -16,7 +15,6 @@ public abstract class KeyMaster implements Runnable {
     public static final int STOP_TIMEOUT_SECONDS = 10;
     private static final long STOP_TIMEOUT = TimeUnit.SECONDS.toMillis(STOP_TIMEOUT_SECONDS);
 
-    protected AmazonS3Client client;
     protected MirrorContext context;
 
     private AtomicBoolean done = new AtomicBoolean(false);
@@ -28,8 +26,7 @@ public abstract class KeyMaster implements Runnable {
 
     private Thread thread;
 
-    public KeyMaster(AmazonS3Client client, MirrorContext context, BlockingQueue<Runnable> workQueue, ThreadPoolExecutor executorService) {
-        this.client = client;
+    public KeyMaster(MirrorContext context, BlockingQueue<Runnable> workQueue, ThreadPoolExecutor executorService) {
         this.context = context;
         this.workQueue = workQueue;
         this.executorService = executorService;
@@ -45,7 +42,8 @@ public abstract class KeyMaster implements Runnable {
         this.thread.start();
     }
 
-    public void stop () {
+    @SuppressWarnings("deprecation")
+	public void stop () {
         final String name = getClass().getSimpleName();
         final long start = System.currentTimeMillis();
         log.info("stopping "+ name +"...");
@@ -77,7 +75,7 @@ public abstract class KeyMaster implements Runnable {
 
         int counter = 0;
         try {
-            final KeyLister lister = new KeyLister(client, context, maxQueueCapacity, getBucket(options), getPrefix(options));
+            final KeyLister lister = new KeyLister(context, maxQueueCapacity, getBucket(options), getPrefix(options));
             executorService.submit(lister);
 
             List<S3ObjectSummary> summaries = lister.getNextBatch();
