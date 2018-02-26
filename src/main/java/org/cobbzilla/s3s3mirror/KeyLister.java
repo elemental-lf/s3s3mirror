@@ -1,6 +1,6 @@
 package org.cobbzilla.s3s3mirror;
 
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
@@ -81,7 +81,7 @@ public class KeyLister implements Runnable {
         }
     }
 
-    private ObjectListing s3getFirstBatch(AmazonS3Client client, ListObjectsRequest request) {
+    private ObjectListing s3getFirstBatch(AmazonS3 client, ListObjectsRequest request) {
 
         final MirrorOptions options = context.getOptions();
         final boolean verbose = options.isVerbose();

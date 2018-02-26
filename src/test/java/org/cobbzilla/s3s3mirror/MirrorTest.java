@@ -1,5 +1,6 @@
 package org.cobbzilla.s3s3mirror;
 
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectMetadata;
@@ -51,7 +52,7 @@ public class MirrorTest {
     public void cleanupS3Assets () {
         // Every individual test *must* initialize the "main" instance variable, otherwise NPE gets thrown here.
         if (checkEnvs()) {
-            AmazonS3Client client = main.getSourceClient();
+            AmazonS3 client = main.getSourceClient();
             for (S3Asset asset : stuffToCleanup) {
                 try {
                     log.info("cleanupS3Assets: deleting "+asset);

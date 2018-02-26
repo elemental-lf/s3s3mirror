@@ -1,6 +1,6 @@
 package org.cobbzilla.s3s3mirror;
 
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3;
 import lombok.Cleanup;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.math.RandomUtils;
@@ -28,7 +28,7 @@ class TestFile {
         file.deleteOnExit();
     }
 
-    public static TestFile create(String key, AmazonS3Client client, List<S3Asset> stuffToCleanup, Copy copy, Clean clean) throws Exception {
+    public static TestFile create(String key, AmazonS3 client, List<S3Asset> stuffToCleanup, Copy copy, Clean clean) throws Exception {
         TestFile testFile = new TestFile();
         switch (clean) {
             case SOURCE:

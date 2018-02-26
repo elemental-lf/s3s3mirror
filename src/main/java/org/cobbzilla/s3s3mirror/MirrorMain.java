@@ -2,7 +2,12 @@ package org.cobbzilla.s3s3mirror;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.regions.Regions;
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.S3ClientOptions;
 
 import lombok.Cleanup;
@@ -33,8 +38,8 @@ public class MirrorMain {
         }
     };
 
-    @Getter private AmazonS3Client sourceClient;
-    @Getter private AmazonS3Client destinationClient;
+    @Getter private AmazonS3 sourceClient;
+    @Getter private AmazonS3 destinationClient;
     @Getter private MirrorContext context;
     @Getter private MirrorMaster master;
 
@@ -72,8 +77,7 @@ public class MirrorMain {
         Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
     }
 
-    @SuppressWarnings("deprecation")
-	protected AmazonS3Client getAmazonS3Client(MirrorCredentials credentials) {
+	protected AmazonS3 getAmazonS3Client(MirrorCredentials credentials) {
         ClientConfiguration clientConfiguration = new ClientConfiguration().withProtocol((options.isSsl() ? Protocol.HTTPS : Protocol.HTTP))
                 .withMaxConnections(options.getMaxConnections());
         if (options.getHasProxy()) {
@@ -81,20 +85,18 @@ public class MirrorMain {
                     .withProxyHost(options.getProxyHost())
                     .withProxyPort(options.getProxyPort());
         }
-        
-        AmazonS3Client client = null;
-        
-        if (credentials.hasAwsKeys()) {
-            client = new AmazonS3Client(credentials, clientConfiguration);
-        } else {
+              
+        if (!credentials.isComplete()) {
             throw new IllegalStateException("No authenication method available");
         }      
-        
-        if (credentials.hasEndpoint()) client.setEndpoint(credentials.getEndpoint());
-        
-        final S3ClientOptions options = new S3ClientOptions();
-        options.setPathStyleAccess(true);
-        client.setS3ClientOptions(options);
+             
+    	AmazonS3 client = AmazonS3ClientBuilder
+				.standard()
+				.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(credentials.getEndpoint(), Regions.US_EAST_1.name()))
+				.withPathStyleAccessEnabled(true)
+				.withClientConfiguration(clientConfiguration)
+				.withCredentials(new AWSStaticCredentialsProvider(credentials))
+				.build();
         
         return client;
     }
@@ -114,11 +116,11 @@ public class MirrorMain {
         loadAwsKeysFromS3Config(options.getSourceProfile(), options.getSourceCredentials());
         loadAwsKeysFromS3Config(options.getDestinationProfile(), options.getDestinationCredentials());
 
-        if (!options.getSourceCredentials().hasAwsKeys()) {
+        if (!options.getSourceCredentials().isComplete()) {
         	throw new IllegalStateException("Could not find source credentials");
         }
         
-        if (!options.getDestinationCredentials().hasAwsKeys()) {
+        if (!options.getDestinationCredentials().isComplete()) {
         	throw new IllegalStateException("Could not find destination credentials");
         }
         

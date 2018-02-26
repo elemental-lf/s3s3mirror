@@ -1,8 +1,7 @@
 package org.cobbzilla.s3s3mirror;
 
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AccessControlList;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
@@ -24,7 +23,7 @@ public abstract class KeyJob implements Runnable {
 
     @Override public String toString() { return summary.getKey(); }
 
-    protected ObjectMetadata getObjectMetadata(AmazonS3Client client, String bucket, String key, MirrorOptions options) throws Exception {
+    protected ObjectMetadata getObjectMetadata(AmazonS3 client, String bucket, String key, MirrorOptions options) throws Exception {
         Exception ex = null;
         for (int tries=0; tries<options.getMaxRetries(); tries++) {
             try {
@@ -57,7 +56,7 @@ public abstract class KeyJob implements Runnable {
     	return this.getObjectMetadata(context.getDestinationClient(), bucket, key, options);
     }     
 
-    protected AccessControlList getAccessControlList(AmazonS3Client client, MirrorOptions options, String key) throws Exception {
+    protected AccessControlList getAccessControlList(AmazonS3 client, MirrorOptions options, String key) throws Exception {
         Exception ex = null;
 
         for (int tries=0; tries<=options.getMaxRetries(); tries++) {

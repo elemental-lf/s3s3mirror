@@ -13,6 +13,5 @@ public class MirrorCredentials implements AWSCredentials {
     @Getter @Setter private String aWSSecretKey;
     @Getter @Setter private String endpoint;
 
-    public boolean hasAwsKeys() { return aWSAccessKeyId != null && aWSSecretKey != null; }
-    public boolean hasEndpoint() { return endpoint != null; }
+    public boolean isComplete() { return aWSAccessKeyId != null && aWSSecretKey != null && endpoint != null; }
 }
