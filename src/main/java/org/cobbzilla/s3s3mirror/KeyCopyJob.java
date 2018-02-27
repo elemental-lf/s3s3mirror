@@ -98,7 +98,7 @@ public class KeyCopyJob extends KeyJob {
             		
             		stats.s3putCount.incrementAndGet();
                     context.getDestinationClient().putObject(putRequest);
-                           		
+                    object.getObjectContent().close();
             	}
             	
             	stats.bytesCopied.addAndGet(sourceMetadata.getContentLength());
