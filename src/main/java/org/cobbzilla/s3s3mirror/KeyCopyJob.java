@@ -63,28 +63,52 @@ public class KeyCopyJob extends KeyJob {
         boolean verbose = options.isVerbose();
         int maxRetries= options.getMaxRetries();
         MirrorStats stats = context.getStats();
+        
+		final ObjectMetadata destinationMetadata = sourceMetadata.clone();
+		
+        if (options.isEncrypt()) {
+        	destinationMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);   
+		}		
+		
         for (int tries = 0; tries < maxRetries; tries++) {
             if (verbose) log.info("copying (try #" + tries + "): " + key + " to: " + keydest);
-            final CopyObjectRequest request = new CopyObjectRequest(options.getSourceBucket(), key, options.getDestinationBucket(), keydest);
             
-            request.setStorageClass(StorageClass.valueOf(options.getStorageClass()));
-            
-            if (options.isEncrypt()) {
-				request.putCustomRequestHeader("x-amz-server-side-encryption", "AES256");
-			}
-            
-            request.setNewObjectMetadata(sourceMetadata);
-            if (options.isCrossAccountCopy() || context.getSourceClient() != context.getDestinationClient()) {
-                request.setCannedAccessControlList(CannedAccessControlList.BucketOwnerFullControl);
-            } else {
-                request.setAccessControlList(objectAcl);
-            }
             try {
-                stats.s3copyCount.incrementAndGet();
-                context.getDestinationClient().copyObject(request);
-                stats.bytesCopied.addAndGet(sourceMetadata.getContentLength());
-                if (verbose) log.info("successfully copied (on try #" + tries + "): " + key + " to: " + keydest);
-                return true;
+            	// Source and destination are using the same client connection -> use copy
+            	if (context.getSourceClient() == context.getDestinationClient()) {
+            		final CopyObjectRequest copyRequest = new CopyObjectRequest(options.getSourceBucket(), key, options.getDestinationBucket(), keydest)
+            											  .withStorageClass(options.getStorageClass())
+            											  .withNewObjectMetadata(destinationMetadata);
+            		            
+                    if (options.isCrossAccountCopy()) {
+                        copyRequest.setCannedAccessControlList(CannedAccessControlList.BucketOwnerFullControl);
+                    } else {
+                        copyRequest.setAccessControlList(objectAcl);
+                    }
+                    
+                    stats.s3copyCount.incrementAndGet();
+                    context.getSourceClient().copyObject(copyRequest);
+                    stats.bytesCopied.addAndGet(sourceMetadata.getContentLength());
+                    
+                    if (verbose) log.info("successfully copied (on try #" + tries + "): " + key + " to: " + keydest);
+                    
+                    return true;   
+            	} else {        		
+            		stats.s3getCount.incrementAndGet();
+            		final S3Object object = context.getSourceClient().getObject(options.getSourceBucket(), key);
+            		
+            		final PutObjectRequest putRequest = new PutObjectRequest(options.getDestinationBucket(), keydest, object.getObjectContent(), destinationMetadata)
+            												.withCannedAcl(CannedAccessControlList.BucketOwnerFullControl)
+            												.withStorageClass(StorageClass.valueOf(options.getStorageClass()));
+            		
+            		stats.s3putCount.incrementAndGet();
+                    context.getDestinationClient().putObject(putRequest);
+                    stats.bytesCopied.addAndGet(sourceMetadata.getContentLength());
+                    
+                    if (verbose) log.info("successfully copied (on try #" + tries + "): " + key + " to: " + keydest);
+                    
+                    return true;          		
+            	}
             } catch (AmazonS3Exception s3e) {
                 log.error("s3 exception copying (try #" + tries + ") " + key + " to: " + keydest + ": " + s3e);
             } catch (Exception e) {
