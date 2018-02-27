@@ -85,17 +85,15 @@ public class MirrorMain {
               
         if (!credentials.isComplete()) {
             throw new IllegalStateException("No authenication method available");
-        }      
-             
-    	AmazonS3 client = AmazonS3ClientBuilder
-				.standard()
-				.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(credentials.getEndpoint(), Regions.US_EAST_1.name()))
-				.withPathStyleAccessEnabled(true)
-				.withClientConfiguration(clientConfiguration)
-				.withCredentials(new AWSStaticCredentialsProvider(credentials))
-				.build();
-        
-        return client;
+        }
+
+        return AmazonS3ClientBuilder
+                .standard()
+                .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(credentials.getEndpoint(), Regions.US_EAST_1.name()))
+                .withPathStyleAccessEnabled(true)
+                .withClientConfiguration(clientConfiguration)
+                .withCredentials(new AWSStaticCredentialsProvider(credentials))
+                .build();
     }
 
 

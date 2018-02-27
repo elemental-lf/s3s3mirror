@@ -8,7 +8,7 @@ import org.kohsuke.args4j.Option;
 
 import java.util.Date;
 
-import static org.cobbzilla.s3s3mirror.MirrorConstants.*;
+import static org.cobbzilla.s3s3mirror.MirrorConstants.GB;
 
 public class MirrorOptions {
 
@@ -80,16 +80,6 @@ public class MirrorOptions {
     public boolean hasDestPrefix() { return destPrefix != null && destPrefix.length() > 0; }
     public int getDestPrefixLength () { return destPrefix == null ? 0 : destPrefix.length(); }
 
-    public static final String AWS_ENDPOINT = "AWS_ENDPOINT";
-
-    public static final String USAGE_ENDPOINT = "AWS endpoint to use (or set "+AWS_ENDPOINT+" in your environment)";
-    public static final String OPT_ENDPOINT = "-e";
-    public static final String LONGOPT_ENDPOINT = "--endpoint";
-    @Option(name=OPT_ENDPOINT, aliases=LONGOPT_ENDPOINT, usage=USAGE_ENDPOINT)
-    @Getter @Setter private String endpoint = System.getenv().get(AWS_ENDPOINT);
-
-    public boolean hasEndpoint () { return endpoint != null && endpoint.trim().length() > 0; }
-
     public static final String USAGE_MAX_CONNECTIONS = "Maximum number of connections to S3 (default 100)";
     public static final String OPT_MAX_CONNECTIONS = "-m";
     public static final String LONGOPT_MAX_CONNECTIONS = "--max-connections";
@@ -128,22 +118,6 @@ public class MirrorOptions {
     public static final String LONGOPT_PROXY = "--proxy";
 
     @Option(name=OPT_PROXY, aliases=LONGOPT_PROXY, usage=PROXY_USAGE)
-    public void setProxy(String proxy) {
-        final String[] splits = proxy.split(":");
-        if (splits.length != 2) {
-            throw new IllegalArgumentException("Invalid proxy setting ("+proxy+"), please use host:port");
-        }
-
-        proxyHost = splits[0];
-        if (proxyHost.trim().length() == 0) {
-            throw new IllegalArgumentException("Invalid proxy setting ("+proxy+"), please use host:port");
-        }
-        try {
-            proxyPort = Integer.parseInt(splits[1]);
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Invalid proxy setting ("+proxy+"), port could not be parsed as a number");
-        }
-    }
     @Getter @Setter public String proxyHost = null;
     @Getter @Setter public int proxyPort = -1;
 

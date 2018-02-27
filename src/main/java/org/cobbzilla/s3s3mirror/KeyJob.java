@@ -23,7 +23,7 @@ public abstract class KeyJob implements Runnable {
 
     @Override public String toString() { return summary.getKey(); }
 
-    protected ObjectMetadata getObjectMetadata(AmazonS3 client, String bucket, String key, MirrorOptions options) throws Exception {
+    private ObjectMetadata getObjectMetadata(AmazonS3 client, String bucket, String key, MirrorOptions options) throws Exception {
         Exception ex = null;
         for (int tries=0; tries<options.getMaxRetries(); tries++) {
             try {
@@ -56,7 +56,7 @@ public abstract class KeyJob implements Runnable {
     	return this.getObjectMetadata(context.getDestinationClient(), bucket, key, options);
     }     
 
-    protected AccessControlList getAccessControlList(AmazonS3 client, MirrorOptions options, String key) throws Exception {
+    private AccessControlList getAccessControlList(AmazonS3 client, MirrorOptions options, String key) throws Exception {
         Exception ex = null;
 
         for (int tries=0; tries<=options.getMaxRetries(); tries++) {
@@ -91,9 +91,5 @@ public abstract class KeyJob implements Runnable {
     
     protected AccessControlList getSourceAccessControlList(MirrorOptions options, String key) throws Exception {
     	return this.getAccessControlList(context.getSourceClient(), options, key);
-    }
-
-    protected AccessControlList getDestinationAccessControlList(MirrorOptions options, String key) throws Exception {
-    	return this.getAccessControlList(context.getDestinationClient(), options, key);
     }
 }
