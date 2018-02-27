@@ -88,11 +88,6 @@ public class KeyCopyJob extends KeyJob {
                     
                     stats.s3copyCount.incrementAndGet();
                     context.getSourceClient().copyObject(copyRequest);
-                    stats.bytesCopied.addAndGet(sourceMetadata.getContentLength());
-                    
-                    if (verbose) log.info("successfully copied (on try #" + tries + "): " + key + " to: " + keydest);
-                    
-                    return true;   
             	} else {        		
             		stats.s3getCount.incrementAndGet();
             		final S3Object object = context.getSourceClient().getObject(options.getSourceBucket(), key);
@@ -103,12 +98,13 @@ public class KeyCopyJob extends KeyJob {
             		
             		stats.s3putCount.incrementAndGet();
                     context.getDestinationClient().putObject(putRequest);
-                    stats.bytesCopied.addAndGet(sourceMetadata.getContentLength());
-                    
-                    if (verbose) log.info("successfully copied (on try #" + tries + "): " + key + " to: " + keydest);
-                    
-                    return true;          		
+                           		
             	}
+            	
+            	stats.bytesCopied.addAndGet(sourceMetadata.getContentLength());
+                if (verbose) log.info("successfully copied (on try #" + tries + "): " + key + " to: " + keydest);
+                
+                return true;               	
             } catch (AmazonS3Exception s3e) {
                 log.error("s3 exception copying (try #" + tries + ") " + key + " to: " + keydest + ": " + s3e);
             } catch (Exception e) {
