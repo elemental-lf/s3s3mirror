@@ -21,13 +21,14 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
         boolean verbose = options.isVerbose();
         String sourceBucket = options.getSourceBucket();
         int maxPartRetries = options.getMaxRetries();
+        MirrorStats stats = context.getStats();
         String destinationBucket = options.getDestinationBucket();
         
 		final ObjectMetadata destinationMetadata = sourceMetadata.clone();
-		
-        if (options.isEncrypt()) {
-        	destinationMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);   
-		}	
+
+        if (options.getSourceProfile().getEncryption() == MirrorEncryption.SSE_AES_256) {
+            destinationMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+        }
     
         if (verbose) log.info("Initiating multipart upload request for " + summary.getKey());
         
@@ -65,12 +66,15 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                 							  .withFirstByte(bytePosition)
                 							  .withLastByte(lastByte)
                 							  .withPartNumber(i);
-            	
+
+                if (context.getSourceSSEKey() != null) copyRequest.setSourceSSECustomerKey(context.getSourceSSEKey());
+                if (context.getDestinationSSEKey() != null) copyRequest.setDestinationSSECustomerKey(context.getDestinationSSEKey());
+
                 for (int tries = 1; tries <= maxPartRetries; tries++) {
                     try {
                         if (verbose) log.info("try :" + tries);
                         
-                        context.getStats().s3copyCount.incrementAndGet();
+                        stats.s3copyCount.incrementAndGet();
                         CopyPartResult copyPartResult = context.getDestinationClient().copyPart(copyRequest);
                         partETags.add(copyPartResult.getPartETag());
                         
@@ -89,8 +93,12 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                 bytePosition += partSize;
             }
         } else {
-    		context.getStats().s3getCount.incrementAndGet();
-    		final S3Object object = context.getSourceClient().getObject(options.getSourceBucket(), key);  
+            final GetObjectRequest getRequest =  new GetObjectRequest(options.getSourceBucket(), key);
+
+            if (context.getSourceSSEKey() != null) getRequest.setSSECustomerKey(context.getSourceSSEKey());
+
+            stats.s3getCount.incrementAndGet();
+            S3Object object = context.getSourceClient().getObject(getRequest); 
     		
             for (int i = 1; bytePosition < objectSize; i++) {
             	long lastByte = Math.min(objectSize - 1, bytePosition + partSize - 1);
@@ -106,12 +114,14 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
 	            		                             .withInputStream(object.getObjectContent())
 	            		                             .withPartSize(currentPartSize)
 	            		                             .withPartNumber(i);
+
+                if (context.getDestinationSSEKey() != null) uploadRequest.setSSECustomerKey(context.getDestinationSSEKey());
             	
                 for (int tries = 1; tries <= maxPartRetries; tries++) {
                     try {
                         if (verbose) log.info("try :" + tries);
                         	
-                        context.getStats().s3putCount.incrementAndGet();
+                        stats.s3putCount.incrementAndGet();
                         UploadPartResult uploadPartResult = context.getDestinationClient().uploadPart(uploadRequest);
                         partETags.add(uploadPartResult.getPartETag());
                         
@@ -147,7 +157,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                 initResult.getUploadId(), partETags);
         context.getDestinationClient().completeMultipartUpload(completeRequest);
         
-        context.getStats().bytesCopied.addAndGet(objectSize);
+        stats.bytesCopied.addAndGet(objectSize);
         if(verbose) log.info("completed multipart request for : " + summary.getKey());
         
         return true;

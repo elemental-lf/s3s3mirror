@@ -14,23 +14,17 @@ public class MirrorOptions {
 
     public static final String S3_PROTOCOL_PREFIX = "s3://";
 
-    public static final String USAGE_USE_IAM_ROLE = "Use IAM role from EC2 instance, can only be used in AWS";
-    public static final String OPT_USE_IAM_ROLE = "-i";
-    public static final String LONGOPT_USE_IAM_ROLE = "--iam";
-    @Option(name=OPT_USE_IAM_ROLE, aliases=LONGOPT_USE_IAM_ROLE, usage=USAGE_USE_IAM_ROLE)
-    @Getter @Setter private boolean useIamRole = false;
-
     public static final String USAGE_SOURCE_PROFILE= "Profile used for source side (from ~/.s3cfg)";
     public static final String OPT_SOURCE_PROFILE= "-Y";
     public static final String LONGOPT_SOURCE_PROFILE = "--source-profile";
     @Option(name=OPT_SOURCE_PROFILE, aliases=LONGOPT_SOURCE_PROFILE, usage=USAGE_SOURCE_PROFILE)
-    @Getter @Setter private String sourceProfile = null;
+    @Getter @Setter private String sourceProfileName = null;
     
     public static final String USAGE_DESTINATION_PROFILE= "Profile used for destination side (from ~/.s3cfg)";
     public static final String OPT_DESTINATION_PROFILE= "-Z";
     public static final String LONGOPT_DESTINATION_PROFILE = "--destination-profile";
     @Option(name=OPT_DESTINATION_PROFILE, aliases=LONGOPT_DESTINATION_PROFILE, usage=USAGE_DESTINATION_PROFILE)
-    @Getter @Setter private String destinationProfile = null;
+    @Getter @Setter private String destinationProfileName = null;
 
     public static final String USAGE_DRY_RUN = "Do not actually do anything, but show what would be done";
     public static final String OPT_DRY_RUN = "-n";
@@ -43,19 +37,7 @@ public class MirrorOptions {
     public static final String LONGOPT_VERBOSE = "--verbose";
     @Option(name=OPT_VERBOSE, aliases=LONGOPT_VERBOSE, usage=USAGE_VERBOSE)
     @Getter @Setter private boolean verbose = false;
-    
-    public static final String USAGE_SSL = "Use SSL for all S3 api operations";
-    public static final String OPT_SSL = "-s";
-    public static final String LONGOPT_SSL = "--ssl";
-    @Option(name=OPT_SSL, aliases=LONGOPT_SSL, usage=USAGE_SSL)
-    @Getter @Setter private boolean ssl = false;
-    
-    public static final String USAGE_ENCRYPT = "Enable AWS managed server-side encryption";
-    public static final String OPT_ENCRYPT = "-E";
-    public static final String LONGOPT_ENCRYPT = "--server-side-encryption";
-    @Option(name=OPT_ENCRYPT, aliases=LONGOPT_ENCRYPT, usage=USAGE_ENCRYPT)
-    @Getter @Setter private boolean encrypt = false;
-    
+
     public static final String USAGE_STORAGE_CLASS = "Specify the S3 StorageClass (Standard | ReducedRedundancy)";
     public static final String OPT_STORAGE_CLASS = "-l";
     public static final String LONGOPT_STORAGE_CLASS = "--storage-class";
@@ -112,22 +94,6 @@ public class MirrorOptions {
     @Getter @Setter private String ctime = null;
     public boolean hasCtime() { return ctime != null; }
 
-    private static final String PROXY_USAGE = "host:port of proxy server to use. " +
-            "Defaults to proxy_host and proxy_port defined in ~/.s3cfg, or no proxy if these values are not found in ~/.s3cfg";
-    public static final String OPT_PROXY = "-z";
-    public static final String LONGOPT_PROXY = "--proxy";
-
-    @Option(name=OPT_PROXY, aliases=LONGOPT_PROXY, usage=PROXY_USAGE)
-    @Getter @Setter public String proxyHost = null;
-    @Getter @Setter public int proxyPort = -1;
-
-    public boolean getHasProxy() {
-        boolean hasProxyHost = proxyHost != null && proxyHost.trim().length() > 0;
-        boolean hasProxyPort = proxyPort != -1;
-
-        return hasProxyHost && hasProxyPort;
-    }
-
     private long initMaxAge() {
 
         DateTime dateTime = new DateTime(nowTime);
@@ -162,9 +128,8 @@ public class MirrorOptions {
     @Option(name=OPT_DELETE_REMOVED, aliases=LONGOPT_DELETE_REMOVED, usage=USAGE_DELETE_REMOVED)
     @Getter @Setter private boolean deleteRemoved = false;
 
-    @Argument(index=0, required=true, usage="source bucket[/source/prefix]") @Getter @Setter private String source;
-    @Argument(index=1, required=true, usage="destination bucket[/dest/prefix]") @Getter @Setter private String destination;
-
+    @Argument(index=0, required=true, usage="Source bucket with optional prefix", metaVar = "<source bucket[/source/prefix]>") @Getter @Setter private String source;
+    @Argument(index=1, required=true, usage="Destination bucket with optional prefix", metaVar = "<source bucket[/source/prefix]>") @Getter @Setter private String destination;
     @Getter private String sourceBucket;
     @Getter private String destinationBucket;
 
@@ -190,8 +155,8 @@ public class MirrorOptions {
     @Option(name=OPT_CROSS_ACCOUNT_COPY, aliases=LONGOPT_CROSS_ACCOUNT_COPY, usage=CROSS_ACCOUNT_USAGE)
     @Getter @Setter private boolean crossAccountCopy = false;
     
-    @Getter private MirrorCredentials sourceCredentials = new MirrorCredentials();
-    @Getter @Setter private MirrorCredentials destinationCredentials = new MirrorCredentials();
+    @Getter private MirrorProfile sourceProfile = new MirrorProfile();
+    @Getter @Setter private MirrorProfile destinationProfile = new MirrorProfile();
 
     public void initDerivedFields() {
 
@@ -231,5 +196,4 @@ public class MirrorOptions {
         }
         return bucket;
     }
-
 }

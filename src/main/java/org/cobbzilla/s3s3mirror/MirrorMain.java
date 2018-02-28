@@ -7,6 +7,8 @@ import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.AmazonS3EncryptionClientBuilder;
+import com.amazonaws.services.s3.model.*;
 import lombok.Cleanup;
 import lombok.Getter;
 import lombok.Setter;
@@ -61,68 +63,111 @@ public class MirrorMain {
             System.exit(1);
         }
 
-        sourceClient = getAmazonS3Client(options.getSourceCredentials());
-        if (!options.getDestinationCredentials().equals(options.getSourceCredentials())) {        	
-        	destinationClient = getAmazonS3Client(options.getDestinationCredentials());
+        sourceClient = getAmazonS3Client(options.getSourceProfile());
+        if (!options.getDestinationProfile().equals(options.getSourceProfile())) {
+        	destinationClient = getAmazonS3Client(options.getDestinationProfile());
         } else {
         	destinationClient = sourceClient;
         }
-        context = new MirrorContext(options, sourceClient, destinationClient);
+
+        MirrorEncryption sourceEncryption = options.getSourceProfile().getEncryption();
+        MirrorEncryption destinationEncryption = options.getDestinationProfile().getEncryption();
+        SSECustomerKey sourceSSEKey = null;
+        SSECustomerKey destinationSSEKey = null;
+
+        if (sourceEncryption == MirrorEncryption.SSE_C_AES_256) {
+            sourceSSEKey = new SSECustomerKey(options.getDestinationProfile().getEncryptionKey());
+        }
+        if (destinationEncryption == MirrorEncryption.SSE_C_AES_256) {
+            destinationSSEKey = new SSECustomerKey(options.getDestinationProfile().getEncryptionKey());
+        }
+
+        context = new MirrorContext(options, sourceClient, destinationClient, sourceSSEKey, destinationSSEKey);
         master = new MirrorMaster(context);
 
         Runtime.getRuntime().addShutdownHook(context.getStats().getShutdownHook());
         Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
     }
 
-	protected AmazonS3 getAmazonS3Client(MirrorCredentials credentials) {
-        ClientConfiguration clientConfiguration = new ClientConfiguration().withProtocol((options.isSsl() ? Protocol.HTTPS : Protocol.HTTP))
+	protected AmazonS3 getAmazonS3Client(MirrorProfile profile) {
+        ClientConfiguration clientConfiguration = new ClientConfiguration()
+                .withProtocol(profile.getEndpoint().startsWith("https:") ? Protocol.HTTPS : Protocol.HTTP)
                 .withMaxConnections(options.getMaxConnections());
-        if (options.getHasProxy()) {
+
+        if (profile.getHasProxy()) {
             clientConfiguration = clientConfiguration
-                    .withProxyHost(options.getProxyHost())
-                    .withProxyPort(options.getProxyPort());
+                    .withProxyHost(profile.getProxyHost())
+                    .withProxyPort(profile.getProxyPort());
         }
               
-        if (!credentials.isComplete()) {
-            throw new IllegalStateException("No authenication method available");
+        if (!profile.isValid()) {
+            throw new IllegalStateException("Profile is invalid");
         }
 
-        return AmazonS3ClientBuilder
-                .standard()
-                .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(credentials.getEndpoint(), Regions.US_EAST_1.name()))
-                .withPathStyleAccessEnabled(true)
-                .withClientConfiguration(clientConfiguration)
-                .withCredentials(new AWSStaticCredentialsProvider(credentials))
-                .build();
+        if (profile.getEncryption() == MirrorEncryption.CSE_AES_GCM_256) {
+            return AmazonS3EncryptionClientBuilder
+                    .standard()
+                    .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
+                    .withPathStyleAccessEnabled(true)
+                    .withClientConfiguration(clientConfiguration)
+                    .withCredentials(new AWSStaticCredentialsProvider(profile))
+                    .withCryptoConfiguration(new CryptoConfiguration(CryptoMode.AuthenticatedEncryption))
+                    .withEncryptionMaterials(new StaticEncryptionMaterialsProvider(new EncryptionMaterials(profile.getEncryptionKey())))
+                    .build();
+        } if (profile.getEncryption() == MirrorEncryption.CSE_AES_GCM_256_STRICT) {
+            return AmazonS3EncryptionClientBuilder
+                    .standard()
+                    .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
+                    .withPathStyleAccessEnabled(true)
+                    .withClientConfiguration(clientConfiguration)
+                    .withCredentials(new AWSStaticCredentialsProvider(profile))
+                    .withCryptoConfiguration(new CryptoConfiguration(CryptoMode.StrictAuthenticatedEncryption))
+                    .withEncryptionMaterials(new StaticEncryptionMaterialsProvider(new EncryptionMaterials(profile.getEncryptionKey())))
+                    .build();
+        } else {
+            return AmazonS3ClientBuilder
+                    .standard()
+                    .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
+                    .withPathStyleAccessEnabled(true)
+                    .withClientConfiguration(clientConfiguration)
+                    .withCredentials(new AWSStaticCredentialsProvider(profile))
+                    .build();
+        }
     }
 
 
     protected void parseArguments() throws Exception {
         parser.parseArgument(args);
         
-        if (options.getSourceProfile() == null || options.getSourceProfile().equals("")) {
+        if (options.getSourceProfileName() == null || options.getSourceProfileName().equals("")) {
         	throw new IllegalStateException("No source profile specified");
         }
 
-        if (options.getDestinationProfile() == null || options.getDestinationProfile().equals("")) {
+        if (options.getDestinationProfileName() == null || options.getDestinationProfileName().equals("")) {
         	throw new IllegalStateException("No destination profile specified");
         }
-            
-        loadAwsKeysFromS3Config(options.getSourceProfile(), options.getSourceCredentials());
-        loadAwsKeysFromS3Config(options.getDestinationProfile(), options.getDestinationCredentials());
 
-        if (!options.getSourceCredentials().isComplete()) {
+        MirrorProfile sourceProfile = options.getSourceProfile();
+        MirrorProfile destinationProfile = options.getDestinationProfile();
+
+        sourceProfile.setName(options.getSourceProfileName());
+        destinationProfile.setName(options.getDestinationProfileName());
+
+        loadAwsKeysFromS3Config(sourceProfile);
+        loadAwsKeysFromS3Config(destinationProfile);
+
+        if (!options.getSourceProfile().isValid()) {
         	throw new IllegalStateException("Could not find source credentials");
         }
         
-        if (!options.getDestinationCredentials().isComplete()) {
+        if (!options.getDestinationProfile().isValid()) {
         	throw new IllegalStateException("Could not find destination credentials");
         }
         
         options.initDerivedFields();
     }
 
-    private void loadAwsKeysFromS3Config(String profile, MirrorCredentials credentials) throws Exception {
+    private void loadAwsKeysFromS3Config(MirrorProfile profile) throws Exception {
         // try to load from ~/.s3cfg
         @Cleanup BufferedReader reader = new BufferedReader(new FileReader(System.getProperty("user.home")+File.separator+".s3cfg"));
         String line;
@@ -130,7 +175,7 @@ public class MirrorMain {
         while ((line = reader.readLine()) != null) {
         	line = line.trim();
         	if (line.startsWith("[")) {
-        		if (line.equals("[" + profile + "]")) {
+        		if (line.equals("[" + profile.getName() + "]")) {
         			skipSection = false;
         		} else {
         			skipSection = true;
@@ -139,16 +184,20 @@ public class MirrorMain {
         	}
         	if (skipSection) continue;
         	      	
-            if (line.startsWith("access_key")) {
-                credentials.setAWSAccessKeyId(line.substring(line.indexOf("=") + 1).trim());
-            } else if (line.startsWith("access_token")) {
-                credentials.setAWSSecretKey(line.substring(line.indexOf("=") + 1).trim());
-            } else if (!options.getHasProxy() && line.startsWith("proxy_host")) {
-                options.setProxyHost(line.substring(line.indexOf("=") + 1).trim());
-            } else if (!options.getHasProxy() && line.startsWith("proxy_port")){
-                options.setProxyPort(Integer.parseInt(line.substring(line.indexOf("=") + 1).trim()));
-            } else if (line.startsWith("website_endpoint")){
-                credentials.setEndpoint(line.substring(line.indexOf("=") + 1).trim());
+            if (line.matches("^access_key\\s*=.*")) {
+                profile.setAWSAccessKeyId(line.substring(line.indexOf("=") + 1).trim());
+            } else if (line.matches("^access_token\\s*=.*")) {
+                profile.setAWSSecretKey(line.substring(line.indexOf("=") + 1).trim());
+            } else if (line.matches("^proxy_host\\s*=.*")) {
+                profile.setProxyHost(line.substring(line.indexOf("=") + 1).trim());
+            } else if (line.matches("^proxy_port\\s*=.*")){
+                profile.setProxyPort(Integer.parseInt(line.substring(line.indexOf("=") + 1).trim()));
+            } else if (line.matches("^website_endpoint\\s*=.*")){
+                profile.setEndpoint(line.substring(line.indexOf("=") + 1).trim());
+            } else if (line.matches("^encryption\\s*=.*")){
+                profile.setEncryption(line.substring(line.indexOf("=") + 1).trim());
+            } else if (line.matches("^encryption_key\\s*=.*")){
+                profile.setEncryptionKey(line.substring(line.indexOf("=") + 1).trim());
             }
         }
     }
