@@ -19,6 +19,8 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 
+import static com.amazonaws.SDKGlobalConfiguration.DISABLE_CERT_CHECKING_SYSTEM_PROPERTY;
+
 /**
  * Provides the "main" method. Responsible for parsing options and setting up the MirrorMaster to manage the copy.
  */
@@ -63,6 +65,9 @@ public class MirrorMain {
             System.exit(1);
         }
 
+        if (options.isDisableCertCheck())
+            System.setProperty(DISABLE_CERT_CHECKING_SYSTEM_PROPERTY, "true");
+
         sourceClient = getAmazonS3Client(options.getSourceProfile());
         if (!options.getDestinationProfile().equals(options.getSourceProfile())) {
         	destinationClient = getAmazonS3Client(options.getDestinationProfile());
@@ -75,10 +80,10 @@ public class MirrorMain {
         SSECustomerKey sourceSSEKey = null;
         SSECustomerKey destinationSSEKey = null;
 
-        if (sourceEncryption == MirrorEncryption.SSE_C_AES_256) {
+        if (sourceEncryption == MirrorEncryption.SSE_C) {
             sourceSSEKey = new SSECustomerKey(options.getDestinationProfile().getEncryptionKey());
         }
-        if (destinationEncryption == MirrorEncryption.SSE_C_AES_256) {
+        if (destinationEncryption == MirrorEncryption.SSE_C) {
             destinationSSEKey = new SSECustomerKey(options.getDestinationProfile().getEncryptionKey());
         }
 
@@ -104,24 +109,31 @@ public class MirrorMain {
             throw new IllegalStateException("Profile is invalid");
         }
 
-        if (profile.getEncryption() == MirrorEncryption.CSE_AES_GCM_256) {
+        MirrorEncryption encryption = profile.getEncryption();
+
+        if ((encryption == MirrorEncryption.CSE_AES_256) ||
+                (encryption == MirrorEncryption.CSE_AES_GCM_256) ||
+                (encryption == MirrorEncryption.CSE_AES_GCM_256_STRICT)) {
+            CryptoMode cryptoMode = null;
+
+            switch (encryption) {
+                case CSE_AES_256:
+                    cryptoMode = CryptoMode.AuthenticatedEncryption;
+                    break;
+                case CSE_AES_GCM_256:
+                    cryptoMode = CryptoMode.EncryptionOnly;
+                    break;
+                case CSE_AES_GCM_256_STRICT:
+                    cryptoMode = CryptoMode.StrictAuthenticatedEncryption;
+            }
+
             return AmazonS3EncryptionClientBuilder
                     .standard()
                     .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
                     .withPathStyleAccessEnabled(true)
                     .withClientConfiguration(clientConfiguration)
                     .withCredentials(new AWSStaticCredentialsProvider(profile))
-                    .withCryptoConfiguration(new CryptoConfiguration(CryptoMode.AuthenticatedEncryption))
-                    .withEncryptionMaterials(new StaticEncryptionMaterialsProvider(new EncryptionMaterials(profile.getEncryptionKey())))
-                    .build();
-        } if (profile.getEncryption() == MirrorEncryption.CSE_AES_GCM_256_STRICT) {
-            return AmazonS3EncryptionClientBuilder
-                    .standard()
-                    .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
-                    .withPathStyleAccessEnabled(true)
-                    .withClientConfiguration(clientConfiguration)
-                    .withCredentials(new AWSStaticCredentialsProvider(profile))
-                    .withCryptoConfiguration(new CryptoConfiguration(CryptoMode.StrictAuthenticatedEncryption))
+                    .withCryptoConfiguration(new CryptoConfiguration(cryptoMode))
                     .withEncryptionMaterials(new StaticEncryptionMaterialsProvider(new EncryptionMaterials(profile.getEncryptionKey())))
                     .build();
         } else {

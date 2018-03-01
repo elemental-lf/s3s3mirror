@@ -158,6 +158,11 @@ public class MirrorOptions {
     @Getter private MirrorProfile sourceProfile = new MirrorProfile();
     @Getter @Setter private MirrorProfile destinationProfile = new MirrorProfile();
 
+    public static final String USAGE_DISABLE_CERT_CHECK = "Disable checking of TLS certificates";
+    public static final String LONGOPT_DISABLE_CERT_CHECK = "--disable-cert-check";
+    @Option(name=LONGOPT_DISABLE_CERT_CHECK, usage=USAGE_DISABLE_CERT_CHECK)
+    @Getter @Setter private boolean disableCertCheck = false;
+
     public void initDerivedFields() {
 
         if (hasCtime()) {

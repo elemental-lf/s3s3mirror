@@ -59,6 +59,11 @@
             <version>3.7</version>
             <scope>runtime,test</scope>
         </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-collections4</artifactId>
+            <version>4.1</version>
+        </dependency>
         <!-- auto-generate java boilerplate -->
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -109,7 +114,6 @@
 
     <build>
         <plugins>
-            <!-- Force Java 1.6 at all times -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>

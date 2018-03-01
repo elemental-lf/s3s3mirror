@@ -34,13 +34,11 @@ public class KeyCopyJob extends KeyJob {
         final String key = summary.getKey();
         try {
             if (!shouldTransfer()) return;
-            final ObjectMetadata sourceMetadata = getSourceObjectMetadata(options.getSourceBucket(), key, options);
-            final AccessControlList objectAcl = getSourceAccessControlList(options, key);
 
             if (options.isDryRun()) {
                 log.info("Would have copied " + key + " to destination: " + keydest);
             } else {
-                if (keyCopied(sourceMetadata, objectAcl)) {
+                if (keyCopied()) {
                     context.getStats().objectsCopied.incrementAndGet();
                 } else {
                     context.getStats().copyErrors.incrementAndGet();
@@ -48,7 +46,6 @@ public class KeyCopyJob extends KeyJob {
             }
         } catch (Exception e) {
             log.error("error copying key: " + key + ": " + e);
-
         } finally {
             synchronized (notifyLock) {
                 notifyLock.notifyAll();
@@ -57,18 +54,32 @@ public class KeyCopyJob extends KeyJob {
         }
     }
 
-    boolean keyCopied(ObjectMetadata sourceMetadata, AccessControlList objectAcl) {
+    boolean keyCopied() {
         String key = summary.getKey();
         MirrorOptions options = context.getOptions();
         boolean verbose = options.isVerbose();
         int maxRetries= options.getMaxRetries();
         MirrorStats stats = context.getStats();
-        
+
+        final ObjectMetadata sourceMetadata;
+        try {
+            sourceMetadata = getSourceObjectMetadata(key);
+        } catch (Exception e) {
+            log.error("error getting metadata for key: " + key + ": " + e);
+            return false;
+        }
 		final ObjectMetadata destinationMetadata = sourceMetadata.clone();
 
-        if (options.getDestinationProfile().getEncryption() == MirrorEncryption.SSE_AES_256) {
+        if (options.getDestinationProfile().getEncryption() == MirrorEncryption.SSE_S3) {
         	destinationMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);   
 		}
+
+		adjustMetadata(destinationMetadata);
+
+        if (verbose) {
+            logMetadata("source", sourceMetadata);
+            logMetadata("destination", destinationMetadata);
+        }
 		
         for (int tries = 0; tries < maxRetries; tries++) {
             if (verbose) log.info("copying (try #" + tries + "): " + key + " to: " + keydest);
@@ -86,6 +97,15 @@ public class KeyCopyJob extends KeyJob {
                     if (options.isCrossAccountCopy()) {
                         copyRequest.setCannedAccessControlList(CannedAccessControlList.BucketOwnerFullControl);
                     } else {
+                        AccessControlList objectAcl;
+
+                        try {
+                            objectAcl = getSourceAccessControlList(key);
+                        } catch (Exception e) {
+                            log.error("error getting ACL for key: " + key + ": " + e);
+                            return false;
+                        }
+
                         copyRequest.setAccessControlList(objectAcl);
                     }
                     
@@ -99,7 +119,7 @@ public class KeyCopyJob extends KeyJob {
 
                     stats.s3getCount.incrementAndGet();
             		S3Object object = context.getSourceClient().getObject(getRequest);
-            		
+
             		final PutObjectRequest putRequest = new PutObjectRequest(options.getDestinationBucket(), keydest, object.getObjectContent(), destinationMetadata)
             												.withCannedAcl(CannedAccessControlList.BucketOwnerFullControl)
             												.withStorageClass(StorageClass.valueOf(options.getStorageClass()));
@@ -150,7 +170,7 @@ public class KeyCopyJob extends KeyJob {
         }
         final ObjectMetadata metadata;
         try {
-            metadata = getDestinationObjectMetadata(options.getDestinationBucket(), keydest, options);
+            metadata = getDestinationObjectMetadata(keydest);
         } catch (AmazonS3Exception e) {
             if (e.getStatusCode() == 404) {
                 if (verbose) log.info("Key not found in destination bucket (will copy): "+ keydest);

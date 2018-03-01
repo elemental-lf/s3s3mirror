@@ -1,6 +1,9 @@
 package org.cobbzilla.s3s3mirror;
 
-import com.amazonaws.services.s3.model.*;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.DeleteObjectRequest;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 
@@ -86,7 +89,7 @@ public class KeyDeleteJob extends KeyJob {
         // Does it exist in the source bucket
         try {
             @SuppressWarnings("unused")
-			ObjectMetadata metadata = getSourceObjectMetadata(options.getSourceBucket(), keysrc, options);
+			ObjectMetadata metadata = getSourceObjectMetadata(keysrc);
             return false; // object exists in source bucket, don't delete it from destination bucket
 
         } catch (AmazonS3Exception e) {

@@ -35,6 +35,7 @@ public class MirrorProfile implements AWSCredentials {
     }
 
     public void setEncryptionKey(String passphrase) {
+        // This isn't ideal. But I don't see a good way to save a randomly generated salt somewhere.
         final byte[] salt = {(byte) 154, (byte) 146, (byte) 100, (byte) 145, (byte) 154, (byte) 145, (byte) 155,
                 (byte) 145, (byte) 156, (byte) 164, (byte) 141, (byte) 154, (byte) 056, (byte) 156, (byte) 145, (byte) 164};
 
@@ -56,8 +57,26 @@ public class MirrorProfile implements AWSCredentials {
     }
 
     public boolean isValid() {
-        return (name != null && aWSAccessKeyId != null && aWSSecretKey != null && endpoint != null
-                && (encryption == MirrorEncryption.NONE || encryption != MirrorEncryption.SSE_AES_256 || encryptionKey != null));
+        // These must be set
+        boolean valid = name != null && aWSAccessKeyId != null && aWSSecretKey != null && endpoint != null;
+
+        switch (encryption) {
+            case NONE:
+            case SSE_S3:
+            case SSE_KMS_DFK:
+                break;
+            case CSE_AES_256:
+            case CSE_AES_GCM_256:
+            case CSE_AES_GCM_256_STRICT:
+            case SSE_C:
+                valid = valid && encryptionKey != null;
+                break;
+            default:
+                // Shouldn't happen...
+                valid = false;
+        }
+
+        return valid;
     }
 
     public boolean equals(MirrorProfile otherProfile) {

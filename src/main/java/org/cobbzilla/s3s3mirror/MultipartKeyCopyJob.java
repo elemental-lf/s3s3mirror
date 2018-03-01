@@ -14,7 +14,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
     }
 
     @Override
-    boolean keyCopied(ObjectMetadata sourceMetadata, AccessControlList objectAcl) {
+    boolean keyCopied() {
     	String key = summary.getKey();
         long objectSize = summary.getSize();
         MirrorOptions options = context.getOptions();
@@ -23,21 +23,44 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
         int maxPartRetries = options.getMaxRetries();
         MirrorStats stats = context.getStats();
         String destinationBucket = options.getDestinationBucket();
-        
-		final ObjectMetadata destinationMetadata = sourceMetadata.clone();
 
-        if (options.getSourceProfile().getEncryption() == MirrorEncryption.SSE_AES_256) {
+        final ObjectMetadata sourceMetadata;
+        try {
+            sourceMetadata = getSourceObjectMetadata(key);
+        } catch (Exception e) {
+            log.error("error getting metadata for key: " + key + ": " + e);
+            return false;
+        }
+        final ObjectMetadata destinationMetadata = sourceMetadata.clone();
+
+        if (options.getSourceProfile().getEncryption() == MirrorEncryption.SSE_S3) {
             destinationMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
         }
-    
-        if (verbose) log.info("Initiating multipart upload request for " + summary.getKey());
-        
+
+        adjustMetadata(destinationMetadata);
+
+        if (verbose) {
+            logMetadata("source", sourceMetadata);
+            logMetadata("destination", destinationMetadata);
+
+            log.info("Initiating multipart upload request for " + summary.getKey());
+        }
+
         InitiateMultipartUploadRequest initiateRequest = new InitiateMultipartUploadRequest(destinationBucket, keydest)
                 .withObjectMetadata(destinationMetadata);
 
         if (options.isCrossAccountCopy() || (context.getSourceClient() != context.getDestinationClient())) {
             initiateRequest.withCannedACL(CannedAccessControlList.BucketOwnerFullControl);
         } else {
+            AccessControlList objectAcl;
+
+            try {
+                objectAcl = getSourceAccessControlList(key);
+            } catch (Exception e) {
+                log.error("error getting ACL for key: " + key + ": " + e);
+                return false;
+            }
+
             initiateRequest.withAccessControlList(objectAcl);
         }
 

@@ -5,9 +5,23 @@ import com.amazonaws.services.s3.model.AccessControlList;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+import lombok.Cleanup;
+import lombok.SneakyThrows;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.collections4.MapUtils;
 import org.slf4j.Logger;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
+import java.util.Map;
+
+@Slf4j
 public abstract class KeyJob implements Runnable {
+
+    final String USER_METADATA_CLEANUP_REGEXP = "(?i:^X-Amz-.*$)";
 
     protected final MirrorContext context;
     protected final S3ObjectSummary summary;
@@ -23,9 +37,10 @@ public abstract class KeyJob implements Runnable {
 
     @Override public String toString() { return summary.getKey(); }
 
-    private ObjectMetadata getObjectMetadata(AmazonS3 client, String bucket, String key, MirrorOptions options) throws Exception {
+    private ObjectMetadata getObjectMetadata(AmazonS3 client, String bucket, String key) throws Exception {
+        MirrorOptions options = context.getOptions();
         Exception ex = null;
-        for (int tries=0; tries<options.getMaxRetries(); tries++) {
+        for (int tries=0; tries < options.getMaxRetries(); tries++) {
             try {
                 context.getStats().s3getCount.incrementAndGet();
                 return client.getObjectMetadata(bucket, key);
@@ -48,21 +63,22 @@ public abstract class KeyJob implements Runnable {
         throw ex;
     }
     
-    protected ObjectMetadata getSourceObjectMetadata(String bucket, String key, MirrorOptions options) throws Exception {
-    	return this.getObjectMetadata(context.getSourceClient(), bucket, key, options);
+    protected ObjectMetadata getSourceObjectMetadata(String key) throws Exception {
+    	return this.getObjectMetadata(context.getSourceClient(), context.getOptions().getSourceBucket(), key);
     }
 
-    protected ObjectMetadata getDestinationObjectMetadata(String bucket, String key, MirrorOptions options) throws Exception {
-    	return this.getObjectMetadata(context.getDestinationClient(), bucket, key, options);
+    protected ObjectMetadata getDestinationObjectMetadata(String key) throws Exception {
+    	return this.getObjectMetadata(context.getDestinationClient(), context.getOptions().getDestinationBucket(), key);
     }     
 
-    private AccessControlList getAccessControlList(AmazonS3 client, MirrorOptions options, String key) throws Exception {
+    private AccessControlList getAccessControlList(AmazonS3 client, String bucket, String key) throws Exception {
+        MirrorOptions options = context.getOptions();
         Exception ex = null;
 
         for (int tries=0; tries<=options.getMaxRetries(); tries++) {
             try {
                 context.getStats().s3getCount.incrementAndGet();
-                return client.getObjectAcl(options.getSourceBucket(), key);
+                return client.getObjectAcl(bucket, key);
 
             } catch (Exception e) {
                 ex = e;
@@ -89,7 +105,76 @@ public abstract class KeyJob implements Runnable {
         throw ex;
     }
     
-    protected AccessControlList getSourceAccessControlList(MirrorOptions options, String key) throws Exception {
-    	return this.getAccessControlList(context.getSourceClient(), options, key);
+    protected AccessControlList getSourceAccessControlList(String key) throws Exception {
+    	return this.getAccessControlList(context.getSourceClient(), context.getOptions().getSourceBucket(), key);
+    }
+
+    @SneakyThrows
+    protected void logMetadata(String label, ObjectMetadata metadata) {
+        Map userMetadataMap = metadata.getUserMetadata();
+        Map rawMetadataMap = metadata.getRawMetadata();
+
+        // Based on https://stackoverflow.com/questions/1760654/java-printstream-to-string
+        final Charset charset = StandardCharsets.UTF_8;
+        @Cleanup ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        @Cleanup PrintStream ps = new PrintStream(baos, true, charset.name());
+
+        MapUtils.debugPrint(ps, label + " user metadata", userMetadataMap);
+        MapUtils.debugPrint(ps, label + " raw metadata", rawMetadataMap);
+
+        String metadataString = new String(baos.toByteArray(), charset);
+
+        log.info(metadataString);
+    }
+
+    /*
+       This does two things: For CSE it searches for the unencrypted length of the object, so that we can correct the
+       Content-Length which includes the encryption overhead. The X-Amz-Unencrypted-Content-Length is created when the
+       object is uploaded. Then it removes all user metadata entries which we don't need in the destination object
+       anymore and which might even confuse some users and programs. This is relevant at least when CSE is in use at the
+       source side as some special headers are used for storing the CEK, IV, etc.
+
+       At the time of writing the Amazon CSE uses the following headers:
+
+       X-Amz-Meta-X-Amz-Key-V2
+       X-Amz-Meta-X-Amz-Wrap-Alg
+       X-Amz-Meta-X-Amz-Unencrypted-Content-Length
+       X-Amz-Meta-X-Amz-Cek-Alg
+       X-Amz-Meta-X-Amz-Tag-Len
+       X-Amz-Meta-X-Amz-Iv
+       X-Amz-Meta-X-Amz-Matdesc
+
+       For a description of the keys see:
+       https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/package-summary.html
+
+       This document also list the following additional headers used by CSE v1:
+
+       X-Amz-Key
+
+       X-Amz-Meta-X-Amz-Unencrypted-Content-Length is marked as optional but in https://github.com/aws/aws-sdk-java/issues/1057
+       an Amazon developer says that it should always be there when using the AWS Java SDK to create the object. Keeping
+       fingers crossed as we really need it.
+
+     */
+    protected void adjustMetadata(ObjectMetadata metadata) {
+        Map<String,String> userMetadataMap = metadata.getUserMetadata();
+        String length = null;
+
+        for (Iterator<Map.Entry<String,String>> it = userMetadataMap.entrySet().iterator(); it.hasNext(); ) {
+            Map.Entry<String, String> entry = it.next();
+
+            if (length != null && entry.getKey().toLowerCase().equals("x-amz-unencrypted-content-length")) {
+                length = entry.getValue();
+            }
+
+            if (entry.getKey().matches(USER_METADATA_CLEANUP_REGEXP)) {
+                it.remove();
+            }
+        }
+
+        if (length != null)
+            metadata.setContentLength(Long.parseLong(length));
+
+        metadata.setUserMetadata(userMetadataMap);
     }
 }
