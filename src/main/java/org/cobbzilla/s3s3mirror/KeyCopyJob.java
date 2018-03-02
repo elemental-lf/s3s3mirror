@@ -11,7 +11,6 @@ import java.util.Date;
  */
 @Slf4j
 public class KeyCopyJob extends KeyJob {
-
     protected String keydest;
 
     public KeyCopyJob(MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
@@ -160,9 +159,10 @@ public class KeyCopyJob extends KeyJob {
                 }
             }
         }
-        final ObjectMetadata metadata;
+
+        final ObjectMetadata destinationMetadata;
         try {
-            metadata = getDestinationObjectMetadata(keydest);
+            destinationMetadata = getDestinationObjectMetadata(keydest);
         } catch (AmazonS3Exception e) {
             if (e.getStatusCode() == 404) {
                 if (verbose) log.info("Key not found in destination bucket (will copy): "+ keydest);
@@ -177,9 +177,10 @@ public class KeyCopyJob extends KeyJob {
         }
 
         if (summary.getSize() > MirrorOptions.MAX_SINGLE_REQUEST_UPLOAD_FILE_SIZE) {
-            return metadata.getContentLength() != summary.getSize();
+            return destinationMetadata.getContentLength() != summary.getSize();
         }
-        final boolean objectChanged = objectChanged(metadata);
+
+        final boolean objectChanged = objectChanged(destinationMetadata);
         if (verbose && !objectChanged) log.info("Destination file is same as source, not copying: "+ key);
 
         return objectChanged;
