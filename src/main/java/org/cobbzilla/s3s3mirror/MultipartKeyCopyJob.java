@@ -116,14 +116,19 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
 
             stats.s3getCount.incrementAndGet();
             S3Object object = context.getSourceClient().getObject(getRequest); 
-    		
+
+            /*
+             * If performance at this point becomes a problem we'll have to look into replacing this with
+             * AmazonS3EncryptionClient.uploadObject for CSE. uploadObject also exists for AmazonS3Client but its
+             * package private there :(
+             */
             for (int i = 1; bytePosition < objectSize; i++) {
             	long lastByte = Math.min(objectSize - 1, bytePosition + partSize - 1);
             	long currentPartSize = Math.min(objectSize - bytePosition, partSize);
                     		
         		infoMessage = "uploading : " + bytePosition + " to " + lastByte + " (partSize " + currentPartSize + ")";
                 if (verbose) log.info(infoMessage);
-        		
+
 	            UploadPartRequest uploadRequest = new UploadPartRequest()
 	            		                             .withBucketName(destinationBucket)
 	            		                             .withKey(keydest)
