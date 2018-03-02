@@ -32,12 +32,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
             return false;
         }
         final ObjectMetadata destinationMetadata = sourceMetadata.clone();
-
-        if (options.getSourceProfile().getEncryption() == MirrorEncryption.SSE_S3) {
-            destinationMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
-        }
-
-        adjustMetadata(destinationMetadata);
+        adjustDestinationMetadata(destinationMetadata);
 
         if (verbose) {
             logMetadata("source", sourceMetadata);
@@ -90,8 +85,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                 							  .withLastByte(lastByte)
                 							  .withPartNumber(i);
 
-                if (context.getSourceSSEKey() != null) copyRequest.setSourceSSECustomerKey(context.getSourceSSEKey());
-                if (context.getDestinationSSEKey() != null) copyRequest.setDestinationSSECustomerKey(context.getDestinationSSEKey());
+                setupSSEEncryption(copyRequest, context.getSourceSSEKey(), context.getDestinationSSEKey());
 
                 for (int tries = 1; tries <= maxPartRetries; tries++) {
                     try {
@@ -118,7 +112,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
         } else {
             final GetObjectRequest getRequest =  new GetObjectRequest(options.getSourceBucket(), key);
 
-            if (context.getSourceSSEKey() != null) getRequest.setSSECustomerKey(context.getSourceSSEKey());
+            setupSSEEncryption(getRequest, context.getSourceSSEKey());
 
             stats.s3getCount.incrementAndGet();
             S3Object object = context.getSourceClient().getObject(getRequest); 
@@ -138,7 +132,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
 	            		                             .withPartSize(currentPartSize)
 	            		                             .withPartNumber(i);
 
-                if (context.getDestinationSSEKey() != null) uploadRequest.setSSECustomerKey(context.getDestinationSSEKey());
+                setupSSEEncryption(uploadRequest, context.getDestinationSSEKey());
             	
                 for (int tries = 1; tries <= maxPartRetries; tries++) {
                     try {

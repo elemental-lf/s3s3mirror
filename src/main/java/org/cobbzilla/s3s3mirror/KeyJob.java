@@ -1,10 +1,7 @@
 package org.cobbzilla.s3s3mirror;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.AccessControlList;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
+import com.amazonaws.services.s3.model.*;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
@@ -37,13 +34,17 @@ public abstract class KeyJob implements Runnable {
 
     @Override public String toString() { return summary.getKey(); }
 
-    private ObjectMetadata getObjectMetadata(AmazonS3 client, String bucket, String key) throws Exception {
+    private ObjectMetadata getObjectMetadata(AmazonS3 client, SSECustomerKey sseKey, String bucket, String key) throws Exception {
         MirrorOptions options = context.getOptions();
         Exception ex = null;
         for (int tries=0; tries < options.getMaxRetries(); tries++) {
             try {
+                GetObjectMetadataRequest getRequest = new GetObjectMetadataRequest(bucket, key);
+
+                setupSSEEncryption(getRequest, sseKey);
+
                 context.getStats().s3getCount.incrementAndGet();
-                return client.getObjectMetadata(bucket, key);
+                return client.getObjectMetadata(getRequest);
 
             } catch (AmazonS3Exception e) {
                 if (e.getStatusCode() == 404) throw e;
@@ -64,21 +65,25 @@ public abstract class KeyJob implements Runnable {
     }
     
     protected ObjectMetadata getSourceObjectMetadata(String key) throws Exception {
-    	return this.getObjectMetadata(context.getSourceClient(), context.getOptions().getSourceBucket(), key);
+    	return this.getObjectMetadata(context.getSourceClient(), context.getSourceSSEKey(),
+                context.getOptions().getSourceBucket(), key);
     }
 
     protected ObjectMetadata getDestinationObjectMetadata(String key) throws Exception {
-    	return this.getObjectMetadata(context.getDestinationClient(), context.getOptions().getDestinationBucket(), key);
+    	return this.getObjectMetadata(context.getDestinationClient(), context.getDestinationSSEKey(),
+                context.getOptions().getDestinationBucket(), key);
     }     
 
-    private AccessControlList getAccessControlList(AmazonS3 client, String bucket, String key) throws Exception {
+    private AccessControlList getAccessControlList(AmazonS3 client, SSECustomerKey sseKey, String bucket, String key) throws Exception {
         MirrorOptions options = context.getOptions();
         Exception ex = null;
 
         for (int tries=0; tries<=options.getMaxRetries(); tries++) {
             try {
+                GetObjectAclRequest getObject = new GetObjectAclRequest(bucket, key);
+
                 context.getStats().s3getCount.incrementAndGet();
-                return client.getObjectAcl(bucket, key);
+                return client.getObjectAcl(getObject);
 
             } catch (Exception e) {
                 ex = e;
@@ -106,7 +111,7 @@ public abstract class KeyJob implements Runnable {
     }
     
     protected AccessControlList getSourceAccessControlList(String key) throws Exception {
-    	return this.getAccessControlList(context.getSourceClient(), context.getOptions().getSourceBucket(), key);
+    	return this.getAccessControlList(context.getSourceClient(), context.getSourceSSEKey(), context.getOptions().getSourceBucket(), key);
     }
 
     @SneakyThrows
@@ -132,7 +137,7 @@ public abstract class KeyJob implements Runnable {
        Content-Length which includes the encryption overhead. The X-Amz-Unencrypted-Content-Length is created when the
        object is uploaded. Then it removes all user metadata entries which we don't need in the destination object
        anymore and which might even confuse some users and programs. This is relevant at least when CSE is in use at the
-       source side as some special headers are used for storing the CEK, IV, etc.
+       source side as some special headers are used for storing the CEK, IV, etc. Last it enables SSE if requested.
 
        At the time of writing the Amazon CSE uses the following headers:
 
@@ -156,7 +161,7 @@ public abstract class KeyJob implements Runnable {
        fingers crossed as we really need it.
 
      */
-    protected void adjustMetadata(ObjectMetadata metadata) {
+    protected void adjustDestinationMetadata(ObjectMetadata metadata) {
         Map<String,String> userMetadataMap = metadata.getUserMetadata();
         String length = null;
 
@@ -176,5 +181,35 @@ public abstract class KeyJob implements Runnable {
             metadata.setContentLength(Long.parseLong(length));
 
         metadata.setUserMetadata(userMetadataMap);
+
+        if (context.getOptions().getDestinationProfile().getEncryption() == MirrorEncryption.SSE_S3) {
+            metadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+        }
+    }
+
+    protected void setupSSEEncryption(GetObjectRequest request, SSECustomerKey sseKey) {
+        request.setSSECustomerKey(sseKey);
+    }
+
+    protected void setupSSEEncryption(GetObjectMetadataRequest request, SSECustomerKey sseKey) {
+        request.setSSECustomerKey(sseKey);
+    }
+
+    protected void setupSSEEncryption(PutObjectRequest request, SSECustomerKey key) {
+        request.setSSECustomerKey(key);
+    }
+
+    protected void setupSSEEncryption(CopyObjectRequest request, SSECustomerKey sourceKey, SSECustomerKey destinationKey) {
+        request.setSourceSSECustomerKey(sourceKey);
+        request.setDestinationSSECustomerKey(destinationKey);
+    }
+
+    protected void setupSSEEncryption(CopyPartRequest request, SSECustomerKey sourceKey, SSECustomerKey destinationKey) {
+        request.setSourceSSECustomerKey(sourceKey);
+        request.setDestinationSSECustomerKey(destinationKey);
+    }
+
+    protected void setupSSEEncryption(UploadPartRequest request, SSECustomerKey key) {
+        request.setSSECustomerKey(key);
     }
 }

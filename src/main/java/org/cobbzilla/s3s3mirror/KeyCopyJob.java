@@ -2,7 +2,6 @@ package org.cobbzilla.s3s3mirror;
 
 import com.amazonaws.services.s3.model.*;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.slf4j.Logger;
 
 import java.util.Date;
@@ -69,12 +68,7 @@ public class KeyCopyJob extends KeyJob {
             return false;
         }
 		final ObjectMetadata destinationMetadata = sourceMetadata.clone();
-
-        if (options.getDestinationProfile().getEncryption() == MirrorEncryption.SSE_S3) {
-        	destinationMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);   
-		}
-
-		adjustMetadata(destinationMetadata);
+		adjustDestinationMetadata(destinationMetadata);
 
         if (verbose) {
             logMetadata("source", sourceMetadata);
@@ -91,8 +85,7 @@ public class KeyCopyJob extends KeyJob {
             											  .withStorageClass(options.getStorageClass())
             											  .withNewObjectMetadata(destinationMetadata);
 
-            		if (context.getSourceSSEKey() != null) copyRequest.setSourceSSECustomerKey(context.getSourceSSEKey());
-            		if (context.getDestinationSSEKey() != null) copyRequest.setDestinationSSECustomerKey(context.getDestinationSSEKey());
+                    setupSSEEncryption(copyRequest, context.getSourceSSEKey(), context.getDestinationSSEKey());
 
                     if (options.isCrossAccountCopy()) {
                         copyRequest.setCannedAccessControlList(CannedAccessControlList.BucketOwnerFullControl);
@@ -115,7 +108,7 @@ public class KeyCopyJob extends KeyJob {
 
             		final GetObjectRequest getRequest =  new GetObjectRequest(options.getSourceBucket(), key);
 
-                    if (context.getSourceSSEKey() != null) getRequest.setSSECustomerKey(context.getSourceSSEKey());
+                    setupSSEEncryption(getRequest, context.getSourceSSEKey());
 
                     stats.s3getCount.incrementAndGet();
             		S3Object object = context.getSourceClient().getObject(getRequest);
@@ -124,7 +117,7 @@ public class KeyCopyJob extends KeyJob {
             												.withCannedAcl(CannedAccessControlList.BucketOwnerFullControl)
             												.withStorageClass(StorageClass.valueOf(options.getStorageClass()));
 
-                    if (context.getDestinationSSEKey() != null) putRequest.setSSECustomerKey(context.getDestinationSSEKey());
+                    setupSSEEncryption(putRequest, context.getDestinationSSEKey());
 
             		stats.s3putCount.incrementAndGet();
                     context.getDestinationClient().putObject(putRequest);
@@ -136,10 +129,9 @@ public class KeyCopyJob extends KeyJob {
                 
                 return true;               	
             } catch (AmazonS3Exception s3e) {
-                log.error("s3 exception copying (try #" + tries + ") " + key + " to: " + keydest + ": " + s3e);
+                log.error("s3 exception copying (try #" + tries + ") " + key + " to " + keydest + ": " + s3e);
             } catch (Exception e) {
-                log.error("unexpected exception copying (try #" + tries + ") " + key + " to: " + keydest + ": " + e
-                        + " " + ExceptionUtils.getStackTrace(e));
+                log.error("unexpected exception copying (try #" + tries + ") " + key + " to " + keydest + ": " + e);
             }
             try {
                 Thread.sleep(10);

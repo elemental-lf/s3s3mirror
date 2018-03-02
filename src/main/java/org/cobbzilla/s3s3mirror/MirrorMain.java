@@ -81,7 +81,7 @@ public class MirrorMain {
         SSECustomerKey destinationSSEKey = null;
 
         if (sourceEncryption == MirrorEncryption.SSE_C) {
-            sourceSSEKey = new SSECustomerKey(options.getDestinationProfile().getEncryptionKey());
+            sourceSSEKey = new SSECustomerKey(options.getSourceProfile().getEncryptionKey());
         }
         if (destinationEncryption == MirrorEncryption.SSE_C) {
             destinationSSEKey = new SSECustomerKey(options.getDestinationProfile().getEncryptionKey());
@@ -109,44 +109,42 @@ public class MirrorMain {
             throw new IllegalStateException("Profile is invalid");
         }
 
-        MirrorEncryption encryption = profile.getEncryption();
+        switch (profile.getEncryption()) {
+            case CSE_AES_256:
+            case CSE_AES_GCM_256:
+            case CSE_AES_GCM_256_STRICT:
+                CryptoMode cryptoMode = null;
 
-        if ((encryption == MirrorEncryption.CSE_AES_256) ||
-                (encryption == MirrorEncryption.CSE_AES_GCM_256) ||
-                (encryption == MirrorEncryption.CSE_AES_GCM_256_STRICT)) {
-            CryptoMode cryptoMode = null;
+                switch (profile.getEncryption()) {
+                    case CSE_AES_256:
+                        cryptoMode = CryptoMode.EncryptionOnly;
+                        break;
+                    case CSE_AES_GCM_256:
+                        cryptoMode = CryptoMode.AuthenticatedEncryption;
+                        break;
+                    case CSE_AES_GCM_256_STRICT:
+                        cryptoMode = CryptoMode.StrictAuthenticatedEncryption;
+                }
 
-            switch (encryption) {
-                case CSE_AES_256:
-                    cryptoMode = CryptoMode.AuthenticatedEncryption;
-                    break;
-                case CSE_AES_GCM_256:
-                    cryptoMode = CryptoMode.EncryptionOnly;
-                    break;
-                case CSE_AES_GCM_256_STRICT:
-                    cryptoMode = CryptoMode.StrictAuthenticatedEncryption;
-            }
-
-            return AmazonS3EncryptionClientBuilder
-                    .standard()
-                    .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
-                    .withPathStyleAccessEnabled(true)
-                    .withClientConfiguration(clientConfiguration)
-                    .withCredentials(new AWSStaticCredentialsProvider(profile))
-                    .withCryptoConfiguration(new CryptoConfiguration(cryptoMode))
-                    .withEncryptionMaterials(new StaticEncryptionMaterialsProvider(new EncryptionMaterials(profile.getEncryptionKey())))
-                    .build();
-        } else {
-            return AmazonS3ClientBuilder
-                    .standard()
-                    .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
-                    .withPathStyleAccessEnabled(true)
-                    .withClientConfiguration(clientConfiguration)
-                    .withCredentials(new AWSStaticCredentialsProvider(profile))
-                    .build();
+                return AmazonS3EncryptionClientBuilder
+                        .standard()
+                        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
+                        .withPathStyleAccessEnabled(true)
+                        .withClientConfiguration(clientConfiguration)
+                        .withCredentials(new AWSStaticCredentialsProvider(profile))
+                        .withCryptoConfiguration(new CryptoConfiguration(cryptoMode))
+                        .withEncryptionMaterials(new StaticEncryptionMaterialsProvider(new EncryptionMaterials(profile.getEncryptionKey())))
+                        .build();
+            default:
+                return AmazonS3ClientBuilder
+                        .standard()
+                        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
+                        .withPathStyleAccessEnabled(true)
+                        .withClientConfiguration(clientConfiguration)
+                        .withCredentials(new AWSStaticCredentialsProvider(profile))
+                        .build();
         }
     }
-
 
     protected void parseArguments() throws Exception {
         parser.parseArgument(args);
