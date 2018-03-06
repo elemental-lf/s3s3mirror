@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class KeyLister implements Runnable {
 
     private MirrorContext context;
+    private AmazonS3 client;
     private int maxQueueCapacity;
 
     private final List<S3ObjectSummary> summaries;
@@ -23,8 +24,9 @@ public class KeyLister implements Runnable {
 
     public boolean isDone () { return done.get(); }
 
-    public KeyLister(MirrorContext context, int maxQueueCapacity, String bucket, String prefix) {
+    public KeyLister(MirrorContext context, int maxQueueCapacity, AmazonS3 client, String bucket, String prefix) {
         this.context = context;
+        this.client = client;
         this.maxQueueCapacity = maxQueueCapacity;
 
         final MirrorOptions options = context.getOptions();
@@ -32,7 +34,7 @@ public class KeyLister implements Runnable {
         this.summaries = new ArrayList<S3ObjectSummary>(10*fetchSize);
 
         final ListObjectsRequest request = new ListObjectsRequest(bucket, prefix, null, null, fetchSize);
-        listing = s3getFirstBatch(context.getSourceClient(), request);
+        listing = s3getFirstBatch(request);
         synchronized (summaries) {
             final List<S3ObjectSummary> objectSummaries = listing.getObjectSummaries();
             summaries.addAll(objectSummaries);
@@ -81,7 +83,7 @@ public class KeyLister implements Runnable {
         }
     }
 
-    private ObjectListing s3getFirstBatch(AmazonS3 client, ListObjectsRequest request) {
+    private ObjectListing s3getFirstBatch(ListObjectsRequest request) {
 
         final MirrorOptions options = context.getOptions();
         final boolean verbose = options.isVerbose();
@@ -115,7 +117,7 @@ public class KeyLister implements Runnable {
         for (int tries=0; tries<maxRetries; tries++) {
             try {
                 context.getStats().s3getCount.incrementAndGet();
-                ObjectListing next = context.getSourceClient().listNextBatchOfObjects(listing);
+                ObjectListing next = client.listNextBatchOfObjects(listing);
                 if (verbose) log.info("successfully got next batch of objects (on try #"+tries+")");
                 return next;
 

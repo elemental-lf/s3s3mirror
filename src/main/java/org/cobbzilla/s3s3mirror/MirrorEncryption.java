@@ -1,7 +1,17 @@
 package org.cobbzilla.s3s3mirror;
 
+import java.util.EnumSet;
+
 public enum MirrorEncryption {
-    NONE, SSE_S3, SSE_C, SSE_KMS_DFK, CSE_AES_256, CSE_AES_GCM_256, CSE_AES_GCM_256_STRICT
+    NONE, SSE_S3, SSE_C, SSE_KMS_DFK, CSE_AES_256, CSE_AES_GCM_256, CSE_AES_GCM_256_STRICT;
+
+    protected static EnumSet<MirrorEncryption> getCSEAlgorithms() {
+        return EnumSet.of(CSE_AES_256, CSE_AES_GCM_256, CSE_AES_GCM_256_STRICT);
+    }
+
+    protected static boolean isCSE(MirrorEncryption encryption) {
+        return getCSEAlgorithms().contains(encryption);
+    }
 
     /*
         SSE_S3:

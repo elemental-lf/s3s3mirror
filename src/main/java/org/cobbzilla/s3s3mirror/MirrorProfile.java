@@ -49,7 +49,7 @@ public class MirrorProfile implements AWSCredentials {
         }
     }
 
-    public boolean getHasProxy() {
+    public boolean hasProxy() {
         boolean hasProxyHost = proxyHost != null && proxyHost.trim().length() > 0;
         boolean hasProxyPort = proxyPort != -1;
 

@@ -1,115 +1,159 @@
 package org.cobbzilla.s3s3mirror;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.*;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.IOUtils;
+import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.junit.After;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import org.junit.runners.Parameterized.Parameter;
+import org.junit.runners.Parameterized.Parameters;
 
+import java.io.InputStream;
+import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.List;
 
 import static org.cobbzilla.s3s3mirror.MirrorOptions.*;
-import static org.cobbzilla.s3s3mirror.TestFile.Clean;
-import static org.cobbzilla.s3s3mirror.TestFile.Copy;
+import static org.cobbzilla.s3s3mirror.TestObject.Clean;
+import static org.cobbzilla.s3s3mirror.TestObject.Copy;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
-@Slf4j
+@Slf4j @RunWith(Parameterized.class)
 public class MirrorTest {
+    @Parameters(name = "{0} to {1} (size {2})")
+    public static Collection<Object[]> data() {
+        ArrayList<Object[]> list = new ArrayList<Object[]>();
 
-    public static final String SOURCE_ENV_VAR = "S3S3_TEST_SOURCE";
-    public static final String DEST_ENV_VAR = "S3S3_TEST_DEST";
+        List<String> sourceProfiles;
+        List<String> destinationProfiles;
+        List<Integer> sizes;
 
-    public static final String SOURCE = System.getenv(SOURCE_ENV_VAR);
-    public static final String DESTINATION = System.getenv(DEST_ENV_VAR);
+        if (false) {
+            sourceProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C");
+            destinationProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C",
+                    "MirrorTest-2", "MirrorTest-2-CSE_AES_GCM_256_STRICT", "MirrorTest-2-SSE_C");
+            sizes = Arrays.asList(12 * 1024);
+        } else {
+            sourceProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C");
+            destinationProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C",
+                    "MirrorTest-2", "MirrorTest-2-CSE_AES_GCM_256_STRICT", "MirrorTest-2-SSE_C");
+            sizes = Arrays.asList(12 * 1024, 12 * 1024 * 1024);
+        }
 
-    private List<S3Asset> stuffToCleanup = new ArrayList<S3Asset>();
+        for (int size: sizes) {
+            for (String sourceProfile : sourceProfiles) {
+                for (String destinationProfile : destinationProfiles) {
+                    list.add(new Object[] {sourceProfile, destinationProfile, size});
+                }
+            }
+        }
+
+        return list;
+    }
+
+    @Parameter(0) public String SOURCE_PROFILE = null;
+    @Parameter(1) public String DESTINATION_PROFILE = null;
+    @Parameter(2) public int FILE_SIZE = 0;
+
+    public String SOURCE = "from-bucket";
+    public String DESTINATION = "to-bucket";
+
+    private String[] getStandardArgs() {
+        String args[] = {LONGOPT_DISABLE_CERT_CHECK, OPT_VERBOSE, OPT_SOURCE_PROFILE, SOURCE_PROFILE, OPT_DESTINATION_PROFILE, DESTINATION_PROFILE};
+        return args;
+    }
 
     // Every individual test *must* initialize the "main" instance variable, otherwise NPE gets thrown here.
     private MirrorMain main = null;
 
-    private TestFile createTestFile(String key, Copy copy, Clean clean) throws Exception {
-        return TestFile.create(key, main.getSourceClient(), stuffToCleanup, copy, clean);
+    private TestObject createTestObject(String key, Copy copy, Clean clean) throws Exception {
+        return TestObject.create(main.getSourceClient(), main.getContext().getSourceSSEKey(), SOURCE,
+                main.getDestinationClient(), main.getContext().getDestinationSSEKey(), DESTINATION, key, FILE_SIZE, copy, clean);
     }
 
-    public static String random(int size) {
+    private static String random(int size) {
         return RandomStringUtils.randomAlphanumeric(size) + "_" + System.currentTimeMillis();
     }
 
-    private boolean checkEnvs() {
-        if (SOURCE == null || DESTINATION == null) {
-            log.warn("No "+SOURCE_ENV_VAR+" and/or no "+DEST_ENV_VAR+" found in enviroment, skipping test");
-            return false;
-        }
-        return true;
+    private ObjectMetadata getMetadata(AmazonS3 client, SSECustomerKey sseKey, String bucket, String key) {
+        GetObjectMetadataRequest getRequest = new GetObjectMetadataRequest(bucket, key)
+                .withSSECustomerKey(sseKey);
+        return client.getObjectMetadata(getRequest);
+    }
+
+    private String getObjectAsString(AmazonS3 client, SSECustomerKey sseKey, String bucket, String key) throws Exception {
+        StringWriter writer = new StringWriter();
+        GetObjectRequest getRequest = new GetObjectRequest(bucket, key)
+                .withSSECustomerKey(sseKey);
+        @Cleanup InputStream objectStream = client.getObject(getRequest).getObjectContent();
+        IOUtils.copy(objectStream, writer, "UTF-8");
+        return writer.toString();
     }
 
     @After
-    public void cleanupS3Assets () {
-        // Every individual test *must* initialize the "main" instance variable, otherwise NPE gets thrown here.
-        if (checkEnvs()) {
-            AmazonS3 client = main.getSourceClient();
-            for (S3Asset asset : stuffToCleanup) {
-                try {
-                    log.info("cleanupS3Assets: deleting "+asset);
-                    client.deleteObject(asset.bucket, asset.key);
-                } catch (Exception e) {
-                    log.error("Error cleaning up object: "+asset+": "+e.getMessage());
-                }
-            }
-            main = null;
-        }
+    public void cleanup () {
+        TestObject.cleanupS3Assets();
+        main = null;
     }
 
     @Test
     public void testSimpleCopy () throws Exception {
-        if (!checkEnvs()) return;
         final String key = "testSimpleCopy_"+random(10);
-        final String[] args = {OPT_VERBOSE, OPT_PREFIX, key, SOURCE, DESTINATION};
+        final String[] args = {OPT_SOURCE_PREFIX, key, SOURCE, DESTINATION};
 
         testSimpleCopyInternal(key, args);
     }
 
     @Test
     public void testSimpleCopyWithInlinePrefix () throws Exception {
-        if (!checkEnvs()) return;
         final String key = "testSimpleCopyWithInlinePrefix_"+random(10);
-        final String[] args = {OPT_VERBOSE, SOURCE + "/" + key, DESTINATION};
+        final String[] args = {SOURCE + "/" + key, DESTINATION};
 
         testSimpleCopyInternal(key, args);
     }
 
     private void testSimpleCopyInternal(String key, String[] args) throws Exception {
-
-        main = new MirrorMain(args);
+        String[] completedArgs = ArrayUtils.addAll(getStandardArgs(), args);
+        main = new MirrorMain(completedArgs);
         main.init();
 
-        final TestFile testFile = createTestFile(key, Copy.SOURCE, Clean.SOURCE_AND_DEST);
+        final TestObject testFile = createTestObject(key, Copy.SOURCE, Clean.SOURCE_AND_DESTINATION);
 
         main.run();
 
         assertEquals(1, main.getContext().getStats().objectsCopied.get());
         assertEquals(testFile.data.length(), main.getContext().getStats().bytesCopied.get());
 
-        final ObjectMetadata metadata = main.getSourceClient().getObjectMetadata(DESTINATION, key);
-        assertEquals(testFile.data.length(), metadata.getContentLength());
+        String object;
+        object = getObjectAsString(main.getSourceClient(), main.getContext().getSourceSSEKey(), SOURCE, key);
+        assertEquals(testFile.data, object);
+
+        final ObjectMetadata metadata = getMetadata(main.getDestinationClient(), main.getContext().getDestinationSSEKey(), DESTINATION, key);
+        assertEquals(testFile.data.length(), KeyJob.getRealObjectSize(metadata));
+
+        object = getObjectAsString(main.getDestinationClient(), main.getContext().getDestinationSSEKey(), DESTINATION, key);
+        assertEquals(testFile.data, object);
     }
 
     @Test
     public void testSimpleCopyWithDestPrefix () throws Exception {
-        if (!checkEnvs()) return;
         final String key = "testSimpleCopyWithDestPrefix_"+random(10);
         final String destKey = "dest_testSimpleCopyWithDestPrefix_"+random(10);
-        final String[] args = {OPT_PREFIX, key, OPT_DEST_PREFIX, destKey, SOURCE, DESTINATION};
+        final String[] args = {OPT_SOURCE_PREFIX, key, OPT_DESTINATION_PREFIX, destKey, SOURCE, DESTINATION};
         testSimpleCopyWithDestPrefixInternal(key, destKey, args);
     }
 
     @Test
     public void testSimpleCopyWithInlineDestPrefix () throws Exception {
-        if (!checkEnvs()) return;
         final String key = "testSimpleCopyWithInlineDestPrefix_"+random(10);
         final String destKey = "dest_testSimpleCopyWithInlineDestPrefix_"+random(10);
         final String[] args = {SOURCE+"/"+key, DESTINATION+"/"+destKey };
@@ -117,43 +161,49 @@ public class MirrorTest {
     }
 
     private void testSimpleCopyWithDestPrefixInternal(String key, String destKey, String[] args) throws Exception {
-        main = new MirrorMain(args);
+        String[] completedArgs = ArrayUtils.addAll(getStandardArgs(), args);
+        main = new MirrorMain(completedArgs);
         main.init();
 
-        final TestFile testFile = createTestFile(key, Copy.SOURCE, Clean.SOURCE);
-        stuffToCleanup.add(new S3Asset(DESTINATION, destKey));
+        final TestObject testFile = createTestObject(key, Copy.SOURCE, Clean.SOURCE_AND_DESTINATION);
 
         main.run();
 
         assertEquals(1, main.getContext().getStats().objectsCopied.get());
         assertEquals(testFile.data.length(), main.getContext().getStats().bytesCopied.get());
 
-        final ObjectMetadata metadata = main.getDestinationClient().getObjectMetadata(DESTINATION, destKey);
-        assertEquals(testFile.data.length(), metadata.getContentLength());
+        String object;
+        object = getObjectAsString(main.getSourceClient(), main.getContext().getSourceSSEKey(), SOURCE, key);
+        assertEquals(testFile.data, object);
+
+        final ObjectMetadata metadata = getMetadata(main.getDestinationClient(), main.getContext().getDestinationSSEKey(), DESTINATION, destKey);
+        assertEquals(testFile.data.length(), KeyJob.getRealObjectSize(metadata));
+
+        object = getObjectAsString(main.getDestinationClient(), main.getContext().getDestinationSSEKey(), DESTINATION, destKey);
+        assertEquals(testFile.data, object);
     }
 
     @Test
     public void testDeleteRemoved () throws Exception {
-        if (!checkEnvs()) return;
-
         final String key = "testDeleteRemoved_"+random(10);
 
-        main = new MirrorMain(new String[]{OPT_VERBOSE, OPT_PREFIX, key,
-                                           OPT_DELETE_REMOVED, SOURCE, DESTINATION});
+        final String[] args = ArrayUtils.addAll(getStandardArgs(), new String[] {OPT_SOURCE_PREFIX, key,
+                OPT_DELETE_REMOVED, SOURCE, DESTINATION});
+        main = new MirrorMain(args);
         main.init();
 
         // Write some files to dest
         final int numDestFiles = 3;
         final String[] destKeys = new String[numDestFiles];
-        final TestFile[] destFiles = new TestFile[numDestFiles];
+        final TestObject[] destFiles = new TestObject[numDestFiles];
         for (int i=0; i<numDestFiles; i++) {
             destKeys[i] = key + "-dest" + i;
-            destFiles[i] = createTestFile(destKeys[i], Copy.DEST, Clean.DEST);
+            destFiles[i] = createTestObject(destKeys[i], Copy.DESTINATION, Clean.DESTINATION);
         }
 
         // Write 1 file to source
         final String srcKey = key + "-src";
-        final TestFile srcFile = createTestFile(srcKey, Copy.SOURCE, Clean.SOURCE_AND_DEST);
+        final TestObject srcFile = createTestObject(srcKey, Copy.SOURCE, Clean.SOURCE_AND_DESTINATION);
 
         // Initiate copy
         main.run();
@@ -165,7 +215,7 @@ public class MirrorTest {
         // Expect none of the original dest files to be there anymore
         for (int i=0; i<numDestFiles; i++) {
             try {
-                main.getSourceClient().getObjectMetadata(DESTINATION, destKeys[i]);
+                main.getDestinationClient().getObjectMetadata(DESTINATION, destKeys[i]);
                 fail("testDeleteRemoved: expected "+destKeys[i]+" to be removed from destination bucket "+DESTINATION);
             } catch (AmazonS3Exception e) {
                 if (e.getStatusCode() != 404) {
@@ -176,11 +226,18 @@ public class MirrorTest {
 
         // Expect source file to now be present in both source and destination buckets
         ObjectMetadata metadata;
-        metadata = main.getSourceClient().getObjectMetadata(SOURCE, srcKey);
-        assertEquals(srcFile.data.length(), metadata.getContentLength());
+        metadata = getMetadata(main.getSourceClient(), main.getContext().getSourceSSEKey(), SOURCE, srcKey);
+        assertEquals(srcFile.data.length(), KeyJob.getRealObjectSize(metadata));
 
-        metadata = main.getSourceClient().getObjectMetadata(DESTINATION, srcKey);
-        assertEquals(srcFile.data.length(), metadata.getContentLength());
+        String object;
+        object = getObjectAsString(main.getSourceClient(), main.getContext().getSourceSSEKey(), SOURCE, srcKey);
+        assertEquals(srcFile.data, object);
+
+        metadata = getMetadata(main.getDestinationClient(), main.getContext().getDestinationSSEKey(), DESTINATION, srcKey);
+        assertEquals(srcFile.data.length(), KeyJob.getRealObjectSize(metadata));
+
+        object = getObjectAsString(main.getDestinationClient(), main.getContext().getDestinationSSEKey(), DESTINATION, srcKey);
+        assertEquals(srcFile.data, object);
     }
 
 }

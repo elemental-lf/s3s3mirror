@@ -2,6 +2,7 @@ package org.cobbzilla.s3s3mirror;
 
 import lombok.Getter;
 import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
 import org.joda.time.DateTime;
 import org.kohsuke.args4j.Argument;
 import org.kohsuke.args4j.Option;
@@ -10,6 +11,7 @@ import java.util.Date;
 
 import static org.cobbzilla.s3s3mirror.MirrorConstants.GB;
 
+@Slf4j
 public class MirrorOptions {
 
     public static final String S3_PROTOCOL_PREFIX = "s3://";
@@ -44,23 +46,23 @@ public class MirrorOptions {
     @Option(name=OPT_STORAGE_CLASS, aliases=LONGOPT_STORAGE_CLASS, usage=USAGE_STORAGE_CLASS)
     @Getter @Setter private String storageClass = "Standard"; 
 
-    public static final String USAGE_PREFIX = "Only copy objects whose keys start with this prefix";
-    public static final String OPT_PREFIX = "-p";
-    public static final String LONGOPT_PREFIX = "--prefix";
-    @Option(name=OPT_PREFIX, aliases=LONGOPT_PREFIX, usage=USAGE_PREFIX)
-    @Getter @Setter private String prefix = null;
+    public static final String USAGE_SOURCE_PREFIX = "Only copy objects whose keys start with this prefix";
+    public static final String OPT_SOURCE_PREFIX = "-p";
+    public static final String LONGOPT_SOURCE_PREFIX = "--source-prefix";
+    @Option(name=OPT_SOURCE_PREFIX, aliases=LONGOPT_SOURCE_PREFIX, usage=USAGE_SOURCE_PREFIX)
+    @Getter @Setter private String sourcePrefix = null;
 
-    public boolean hasPrefix () { return prefix != null && prefix.length() > 0; }
-    public int getPrefixLength () { return prefix == null ? 0 : prefix.length(); }
+    public boolean hasSourcePrefix() { return sourcePrefix != null && sourcePrefix.length() > 0; }
+    public int getSourcePrefixLength() { return sourcePrefix == null ? 0 : sourcePrefix.length(); }
 
-    public static final String USAGE_DEST_PREFIX = "Destination prefix (replacing the one specified in --prefix, if any)";
-    public static final String OPT_DEST_PREFIX= "-d";
-    public static final String LONGOPT_DEST_PREFIX = "--dest-prefix";
-    @Option(name=OPT_DEST_PREFIX, aliases=LONGOPT_DEST_PREFIX, usage=USAGE_DEST_PREFIX)
-    @Getter @Setter private String destPrefix = null;
+    public static final String USAGE_DESTINATION_PREFIX = "Destination prefix (replacing the one specified in --prefix, if any)";
+    public static final String OPT_DESTINATION_PREFIX= "-d";
+    public static final String LONGOPT_DESTINATION_PREFIX = "--destination-prefix";
+    @Option(name=OPT_DESTINATION_PREFIX, aliases=LONGOPT_DESTINATION_PREFIX, usage=USAGE_DESTINATION_PREFIX)
+    @Getter @Setter private String destinationPrefix = null;
 
-    public boolean hasDestPrefix() { return destPrefix != null && destPrefix.length() > 0; }
-    public int getDestPrefixLength () { return destPrefix == null ? 0 : destPrefix.length(); }
+    public boolean hasDestinationPrefix() { return destinationPrefix != null && destinationPrefix.length() > 0; }
+    public int getDestinationPrefixLength() { return destinationPrefix == null ? 0 : destinationPrefix.length(); }
 
     public static final String USAGE_MAX_CONNECTIONS = "Maximum number of connections to S3 (default 100)";
     public static final String OPT_MAX_CONNECTIONS = "-m";
@@ -128,10 +130,10 @@ public class MirrorOptions {
     @Option(name=OPT_DELETE_REMOVED, aliases=LONGOPT_DELETE_REMOVED, usage=USAGE_DELETE_REMOVED)
     @Getter @Setter private boolean deleteRemoved = false;
 
-    @Argument(index=0, required=true, usage="Source bucket with optional prefix", metaVar = "<source bucket[/source/prefix]>") @Getter @Setter private String source;
-    @Argument(index=1, required=true, usage="Destination bucket with optional prefix", metaVar = "<source bucket[/source/prefix]>") @Getter @Setter private String destination;
-    @Getter private String sourceBucket;
-    @Getter private String destinationBucket;
+    @Argument(index=0, required=true, usage="Source bucket with optional prefix", metaVar = "<source bucket[/source/prefix]>")
+    @Getter @Setter private String sourceBucket;
+    @Argument(index=1, required=true, usage="Destination bucket with optional prefix", metaVar = "<source bucket[/source/prefix]>")
+    @Getter @Setter private String destinationBucket;
 
     /**
      * Current max file size allowed in amazon is 5 GB. We can try and provide this as an option too.
@@ -173,24 +175,24 @@ public class MirrorOptions {
         String scrubbed;
         int slashPos;
 
-        scrubbed = scrubS3ProtocolPrefix(source);
+        scrubbed = scrubS3ProtocolPrefix(sourceBucket);
         slashPos = scrubbed.indexOf('/');
         if (slashPos == -1) {
             sourceBucket = scrubbed;
         } else {
             sourceBucket = scrubbed.substring(0, slashPos);
-            if (hasPrefix()) throw new IllegalArgumentException("Cannot use a "+OPT_PREFIX+"/"+LONGOPT_PREFIX+" argument and source path that includes a prefix at the same time");
-            prefix = scrubbed.substring(slashPos+1);
+            if (hasSourcePrefix()) throw new IllegalArgumentException("Cannot use a "+OPT_SOURCE_PREFIX+"/"+LONGOPT_SOURCE_PREFIX+" argument and source path that includes a prefix at the same time");
+            sourcePrefix = scrubbed.substring(slashPos+1);
         }
 
-        scrubbed = scrubS3ProtocolPrefix(destination);
+        scrubbed = scrubS3ProtocolPrefix(destinationBucket);
         slashPos = scrubbed.indexOf('/');
         if (slashPos == -1) {
             destinationBucket = scrubbed;
         } else {
             destinationBucket = scrubbed.substring(0, slashPos);
-            if (hasDestPrefix()) throw new IllegalArgumentException("Cannot use a "+OPT_DEST_PREFIX+"/"+LONGOPT_DEST_PREFIX+" argument and destination path that includes a dest-prefix at the same time");
-            destPrefix = scrubbed.substring(slashPos+1);
+            if (hasDestinationPrefix()) throw new IllegalArgumentException("Cannot use a "+OPT_DESTINATION_PREFIX+"/"+LONGOPT_DESTINATION_PREFIX+" argument and destination path that includes a dest-prefix at the same time");
+            destinationPrefix = scrubbed.substring(slashPos+1);
         }
     }
 

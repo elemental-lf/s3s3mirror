@@ -1,5 +1,6 @@
 package org.cobbzilla.s3s3mirror;
 
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import lombok.extern.slf4j.Slf4j;
 
@@ -32,6 +33,7 @@ public abstract class KeyMaster implements Runnable {
         this.executorService = executorService;
     }
 
+    protected abstract AmazonS3 getClient();
     protected abstract String getPrefix(MirrorOptions options);
     protected abstract String getBucket(MirrorOptions options);
 
@@ -75,11 +77,11 @@ public abstract class KeyMaster implements Runnable {
 
         int counter = 0;
         try {
-            final KeyLister lister = new KeyLister(context, maxQueueCapacity, getBucket(options), getPrefix(options));
+            final KeyLister lister = new KeyLister(context, maxQueueCapacity, getClient(), getBucket(options), getPrefix(options));
             executorService.submit(lister);
 
             List<S3ObjectSummary> summaries = lister.getNextBatch();
-            if (verbose) log.info(summaries.size()+" keys found in first batch from source bucket -- processing...");
+            if (verbose) log.info(summaries.size()+" keys found in first batch from bucket -- processing...");
 
             while (true) {
                 for (S3ObjectSummary summary : summaries) {
@@ -101,7 +103,7 @@ public abstract class KeyMaster implements Runnable {
 
                 summaries = lister.getNextBatch();
                 if (summaries.size() > 0) {
-                    if (verbose) log.info(summaries.size()+" more keys found in source bucket -- continuing (queue size="+workQueue.size()+", total processed="+counter+")...");
+                    if (verbose) log.info(summaries.size()+" more keys found in bucket -- continuing (queue size="+workQueue.size()+", total processed="+counter+")...");
 
                 } else if (lister.isDone()) {
                     if (verbose) log.info("No more keys found in source bucket -- ALL DONE");

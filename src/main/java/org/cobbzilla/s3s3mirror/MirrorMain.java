@@ -48,11 +48,11 @@ public class MirrorMain {
 
     public static void main (String[] args) {
         MirrorMain main = new MirrorMain(args);
+        main.init();
         main.run();
     }
 
     public void run() {
-        init();
         master.mirror();
     }
 
@@ -99,7 +99,7 @@ public class MirrorMain {
                 .withProtocol(profile.getEndpoint().startsWith("https:") ? Protocol.HTTPS : Protocol.HTTP)
                 .withMaxConnections(options.getMaxConnections());
 
-        if (profile.getHasProxy()) {
+        if (profile.hasProxy()) {
             clientConfiguration = clientConfiguration
                     .withProxyHost(profile.getProxyHost())
                     .withProxyPort(profile.getProxyPort());
@@ -178,8 +178,14 @@ public class MirrorMain {
     }
 
     private void loadAwsKeysFromS3Config(MirrorProfile profile) throws Exception {
-        // try to load from ~/.s3cfg
-        @Cleanup BufferedReader reader = new BufferedReader(new FileReader(System.getProperty("user.home")+File.separator+".s3cfg"));
+        String s3CfgPath = System.getenv("S3CFG");
+        if (s3CfgPath == null) {
+            s3CfgPath = "./.s3cfg";
+            if (!new File(s3CfgPath).isFile())
+                s3CfgPath = System.getProperty("user.home") + File.separator + ".s3cfg";
+        }
+
+        @Cleanup BufferedReader reader = new BufferedReader(new FileReader(s3CfgPath));
         String line;
         boolean skipSection = true;
         while ((line = reader.readLine()) != null) {

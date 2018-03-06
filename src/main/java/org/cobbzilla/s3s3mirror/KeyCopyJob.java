@@ -18,9 +18,9 @@ public class KeyCopyJob extends KeyJob {
 
         keydest = summary.getKey();
         final MirrorOptions options = context.getOptions();
-        if (options.hasDestPrefix()) {
-            keydest = keydest.substring(options.getPrefixLength());
-            keydest = options.getDestPrefix() + keydest;
+        if (options.hasDestinationPrefix()) {
+            keydest = keydest.substring(options.getSourcePrefixLength());
+            keydest = options.getDestinationPrefix() + keydest;
         }
     }
 
@@ -66,20 +66,17 @@ public class KeyCopyJob extends KeyJob {
             log.error("error getting metadata for key: " + key + ": " + e);
             return false;
         }
+        if (verbose) logMetadata("source", sourceMetadata);
 		final ObjectMetadata destinationMetadata = sourceMetadata.clone();
-		adjustDestinationMetadata(destinationMetadata);
 
-        if (verbose) {
-            logMetadata("source", sourceMetadata);
-            logMetadata("destination", destinationMetadata);
-        }
-		
+		adjustDestinationMetadata(destinationMetadata);
+        if (verbose) logMetadata("destination (after adjust)", destinationMetadata);
+
         for (int tries = 0; tries < maxRetries; tries++) {
             if (verbose) log.info("copying (try #" + tries + "): " + key + " to: " + keydest);
             
             try {
-            	// Source and destination are using the same client connection -> use copy
-            	if (context.getSourceClient() == context.getDestinationClient()) {
+            	if (isSameClientConnection()) {
             		final CopyObjectRequest copyRequest = new CopyObjectRequest(options.getSourceBucket(), key, options.getDestinationBucket(), keydest)
             											  .withStorageClass(options.getStorageClass())
             											  .withNewObjectMetadata(destinationMetadata);
@@ -123,8 +120,8 @@ public class KeyCopyJob extends KeyJob {
                     object.getObjectContent().close();
             	}
             	
-            	stats.bytesCopied.addAndGet(sourceMetadata.getContentLength());
-                if (verbose) log.info("successfully copied (on try #" + tries + "): " + key + " to: " + keydest);
+            	stats.bytesCopied.addAndGet(getRealObjectSize(sourceMetadata));
+                if (verbose) log.info("successfully copied (on try #" + tries + "): " + key + " to " + keydest);
                 
                 return true;               	
             } catch (AmazonS3Exception s3e) {
@@ -176,10 +173,6 @@ public class KeyCopyJob extends KeyJob {
             return false;
         }
 
-        if (summary.getSize() > MirrorOptions.MAX_SINGLE_REQUEST_UPLOAD_FILE_SIZE) {
-            return destinationMetadata.getContentLength() != summary.getSize();
-        }
-
         final boolean objectChanged = objectChanged(destinationMetadata);
         if (verbose && !objectChanged) log.info("Destination file is same as source, not copying: "+ key);
 
@@ -187,18 +180,6 @@ public class KeyCopyJob extends KeyJob {
     }
 
     boolean objectChanged(ObjectMetadata metadata) {
-        final MirrorOptions options = context.getOptions();
-        final KeyFingerprint sourceFingerprint;
-        final KeyFingerprint destFingerprint;
-        
-        if (options.isSizeOnly()) {
-            sourceFingerprint = new KeyFingerprint(summary.getSize());
-            destFingerprint = new KeyFingerprint(metadata.getContentLength());
-        } else {
-            sourceFingerprint = new KeyFingerprint(summary.getSize(), summary.getETag());
-            destFingerprint = new KeyFingerprint(metadata.getContentLength(), metadata.getETag());
-        }
-
-        return !sourceFingerprint.equals(destFingerprint);
+        return summary.getSize() != getRealObjectSize(metadata);
     }
 }

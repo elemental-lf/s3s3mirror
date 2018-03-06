@@ -1,5 +1,6 @@
 package org.cobbzilla.s3s3mirror;
 
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 
 import java.util.concurrent.BlockingQueue;
@@ -11,8 +12,10 @@ public class DeleteMaster extends KeyMaster {
         super(context, workQueue, executorService);
     }
 
+    protected AmazonS3 getClient() { return context.getDestinationClient(); }
+
     protected String getPrefix(MirrorOptions options) {
-        return options.hasDestPrefix() ? options.getDestPrefix() : options.getPrefix();
+        return options.hasDestinationPrefix() ? options.getDestinationPrefix() : options.getSourcePrefix();
     }
 
     protected String getBucket(MirrorOptions options) { return options.getDestinationBucket(); }

@@ -65,12 +65,12 @@ public abstract class KeyJob implements Runnable {
     }
     
     protected ObjectMetadata getSourceObjectMetadata(String key) throws Exception {
-    	return this.getObjectMetadata(context.getSourceClient(), context.getSourceSSEKey(),
+    	return getObjectMetadata(context.getSourceClient(), context.getSourceSSEKey(),
                 context.getOptions().getSourceBucket(), key);
     }
 
     protected ObjectMetadata getDestinationObjectMetadata(String key) throws Exception {
-    	return this.getObjectMetadata(context.getDestinationClient(), context.getDestinationSSEKey(),
+    	return getObjectMetadata(context.getDestinationClient(), context.getDestinationSSEKey(),
                 context.getOptions().getDestinationBucket(), key);
     }     
 
@@ -115,7 +115,7 @@ public abstract class KeyJob implements Runnable {
     }
 
     @SneakyThrows
-    protected void logMetadata(String label, ObjectMetadata metadata) {
+    protected static void logMetadata(String label, ObjectMetadata metadata) {
         Map userMetadataMap = metadata.getUserMetadata();
         Map rawMetadataMap = metadata.getRawMetadata();
 
@@ -162,54 +162,80 @@ public abstract class KeyJob implements Runnable {
 
      */
     protected void adjustDestinationMetadata(ObjectMetadata metadata) {
-        Map<String,String> userMetadataMap = metadata.getUserMetadata();
-        String length = null;
+        if (!isSameClientConnection()) {
+            Map<String, String> userMetadataMap = metadata.getUserMetadata();
+            String length = null;
 
-        for (Iterator<Map.Entry<String,String>> it = userMetadataMap.entrySet().iterator(); it.hasNext(); ) {
-            Map.Entry<String, String> entry = it.next();
+            for (Iterator<Map.Entry<String, String>> it = userMetadataMap.entrySet().iterator(); it.hasNext(); ) {
+                Map.Entry<String, String> entry = it.next();
 
-            if (length != null && entry.getKey().toLowerCase().equals("x-amz-unencrypted-content-length")) {
-                length = entry.getValue();
+                if (length == null && entry.getKey().toLowerCase().equals("x-amz-unencrypted-content-length")) {
+                    length = new String(entry.getValue());
+                }
+
+                if (entry.getKey().matches(USER_METADATA_CLEANUP_REGEXP)) {
+                    it.remove();
+                }
             }
 
-            if (entry.getKey().matches(USER_METADATA_CLEANUP_REGEXP)) {
-                it.remove();
+            metadata.setUserMetadata(userMetadataMap);
+
+            if (length != null) {
+                if (context.getOptions().isVerbose())
+                    log.info("adjusting Content-Length from " + metadata.getContentLength() +
+                            " to " + length);
+                metadata.setContentLength(Long.parseLong(length));
             }
         }
-
-        if (length != null)
-            metadata.setContentLength(Long.parseLong(length));
-
-        metadata.setUserMetadata(userMetadataMap);
 
         if (context.getOptions().getDestinationProfile().getEncryption() == MirrorEncryption.SSE_S3) {
             metadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
         }
     }
 
-    protected void setupSSEEncryption(GetObjectRequest request, SSECustomerKey sseKey) {
-        request.setSSECustomerKey(sseKey);
+    protected static long getRealObjectSize(ObjectMetadata metadata) {
+        Map<String,String> userMetadataMap = metadata.getUserMetadata();
+        String length = null;
+
+        for (Iterator<Map.Entry<String,String>> it = userMetadataMap.entrySet().iterator(); it.hasNext(); ) {
+            Map.Entry<String, String> entry = it.next();
+
+            if (entry.getKey().toLowerCase().equals("x-amz-unencrypted-content-length")) {
+                length = entry.getValue();
+                break;
+            }
+        }
+
+        return (length != null) ? Long.parseLong(length) : metadata.getContentLength();
     }
 
-    protected void setupSSEEncryption(GetObjectMetadataRequest request, SSECustomerKey sseKey) {
-        request.setSSECustomerKey(sseKey);
+    protected void setupSSEEncryption(GetObjectRequest request, SSECustomerKey key) {
+        if (key != null) request.setSSECustomerKey(key);
     }
 
-    protected void setupSSEEncryption(PutObjectRequest request, SSECustomerKey key) {
-        request.setSSECustomerKey(key);
+    protected void setupSSEEncryption(GetObjectMetadataRequest request, SSECustomerKey key) {
+        if (key != null) request.setSSECustomerKey(key);
+    }
+
+    protected void setupSSEEncryption(PutObjectRequest request, SSECustomerKey sseKey) {
+        if (sseKey != null) request.setSSECustomerKey(sseKey);
     }
 
     protected void setupSSEEncryption(CopyObjectRequest request, SSECustomerKey sourceKey, SSECustomerKey destinationKey) {
-        request.setSourceSSECustomerKey(sourceKey);
-        request.setDestinationSSECustomerKey(destinationKey);
+        if (sourceKey != null) request.setSourceSSECustomerKey(sourceKey);
+        if (destinationKey != null) request.setDestinationSSECustomerKey(destinationKey);
     }
 
     protected void setupSSEEncryption(CopyPartRequest request, SSECustomerKey sourceKey, SSECustomerKey destinationKey) {
-        request.setSourceSSECustomerKey(sourceKey);
-        request.setDestinationSSECustomerKey(destinationKey);
+        if (sourceKey != null) request.setSourceSSECustomerKey(sourceKey);
+        if (destinationKey != null) request.setDestinationSSECustomerKey(destinationKey);
     }
 
     protected void setupSSEEncryption(UploadPartRequest request, SSECustomerKey key) {
-        request.setSSECustomerKey(key);
+        if (key != null) request.setSSECustomerKey(key);
+    }
+
+    boolean isSameClientConnection() {
+        return context.getSourceClient() == context.getDestinationClient();
     }
 }

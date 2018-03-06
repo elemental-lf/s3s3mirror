@@ -16,7 +16,6 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
     @Override
     boolean keyCopied() {
     	String key = summary.getKey();
-        long objectSize = summary.getSize();
         MirrorOptions options = context.getOptions();
         boolean verbose = options.isVerbose();
         String sourceBucket = options.getSourceBucket();
@@ -31,18 +30,19 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
             log.error("error getting metadata for key: " + key + ": " + e);
             return false;
         }
+        long objectSize = getRealObjectSize(sourceMetadata);
+        if (verbose) logMetadata("source", sourceMetadata);
         final ObjectMetadata destinationMetadata = sourceMetadata.clone();
         adjustDestinationMetadata(destinationMetadata);
-
         if (verbose) {
-            logMetadata("source", sourceMetadata);
-            logMetadata("destination", destinationMetadata);
+            logMetadata("destination (after adjust)", destinationMetadata);
 
             log.info("Initiating multipart upload request for " + summary.getKey());
         }
 
         InitiateMultipartUploadRequest initiateRequest = new InitiateMultipartUploadRequest(destinationBucket, keydest)
-                .withObjectMetadata(destinationMetadata);
+                                                            .withObjectMetadata(destinationMetadata)
+                                                            .withStorageClass(options.getStorageClass());
 
         if (options.isCrossAccountCopy() || (context.getSourceClient() != context.getDestinationClient())) {
             initiateRequest.withCannedACL(CannedAccessControlList.BucketOwnerFullControl);
@@ -56,7 +56,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                 return false;
             }
 
-            initiateRequest.withAccessControlList(objectAcl);
+            initiateRequest.setAccessControlList(objectAcl);
         }
 
         InitiateMultipartUploadResult initResult = context.getDestinationClient().initiateMultipartUpload(initiateRequest);
@@ -66,8 +66,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
         long bytePosition = 0;
         String infoMessage;
       
-        // Source and destination are using the same client connection -> use copy
-        if (context.getSourceClient() == context.getDestinationClient()) {
+        if (isSameClientConnection()) {
             for (int i = 1; bytePosition < objectSize; i++) {
             	long lastByte = Math.min(objectSize - 1, bytePosition + partSize - 1);
             	long currentPartSize = Math.min(objectSize - bytePosition, partSize);
@@ -79,7 +78,6 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                 							  .withDestinationBucketName(destinationBucket)
                 							  .withDestinationKey(keydest)
                 							  .withSourceBucketName(sourceBucket)
-                							  .withSourceKey(key)
                 							  .withUploadId(initResult.getUploadId())
                 							  .withFirstByte(bytePosition)
                 							  .withLastByte(lastByte)
@@ -183,10 +181,5 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
         if(verbose) log.info("completed multipart request for : " + summary.getKey());
         
         return true;
-    }
-
-    @Override
-    boolean objectChanged(ObjectMetadata metadata) {
-        return summary.getSize() != metadata.getContentLength();
     }
 }
