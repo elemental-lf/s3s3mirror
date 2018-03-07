@@ -1,7 +1,9 @@
 package org.cobbzilla.s3s3mirror;
 
-import com.amazonaws.services.s3.AmazonS3Client;
-import com.amazonaws.services.s3.model.*;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.DeleteObjectRequest;
+import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 
@@ -10,14 +12,14 @@ public class KeyDeleteJob extends KeyJob {
 
     private String keysrc;
 
-    public KeyDeleteJob (AmazonS3Client client, MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
-        super(client, context, summary, notifyLock);
+    public KeyDeleteJob (MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
+        super(context, summary, notifyLock);
 
         final MirrorOptions options = context.getOptions();
         keysrc = summary.getKey(); // NOTE: summary.getKey is the key in the destination bucket
-        if (options.hasPrefix()) {
-            keysrc = keysrc.substring(options.getDestPrefixLength());
-            keysrc = options.getPrefix() + keysrc;
+        if (options.hasSourcePrefix()) {
+            keysrc = keysrc.substring(options.getDestinationPrefixLength());
+            keysrc = options.getSourcePrefix() + keysrc;
         }
     }
 
@@ -43,7 +45,7 @@ public class KeyDeleteJob extends KeyJob {
                     if (verbose) log.info("deleting (try #"+tries+"): "+key);
                     try {
                         stats.s3deleteCount.incrementAndGet();
-                        client.deleteObject(request);
+                        context.getDestinationClient().deleteObject(request);
                         deletedOK = true;
                         if (verbose) log.info("successfully deleted (on try #"+tries+"): "+key);
                         break;
@@ -86,7 +88,8 @@ public class KeyDeleteJob extends KeyJob {
 
         // Does it exist in the source bucket
         try {
-            ObjectMetadata metadata = getObjectMetadata(options.getSourceBucket(), keysrc, options);
+            @SuppressWarnings("unused")
+			ObjectMetadata metadata = getSourceObjectMetadata(keysrc);
             return false; // object exists in source bucket, don't delete it from destination bucket
 
         } catch (AmazonS3Exception e) {

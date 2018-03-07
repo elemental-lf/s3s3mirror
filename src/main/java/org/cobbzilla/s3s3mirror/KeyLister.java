@@ -1,6 +1,6 @@
 package org.cobbzilla.s3s3mirror;
 
-import com.amazonaws.services.s3.AmazonS3Client;
+import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
@@ -14,8 +14,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @Slf4j
 public class KeyLister implements Runnable {
 
-    private AmazonS3Client client;
     private MirrorContext context;
+    private AmazonS3 client;
     private int maxQueueCapacity;
 
     private final List<S3ObjectSummary> summaries;
@@ -24,9 +24,9 @@ public class KeyLister implements Runnable {
 
     public boolean isDone () { return done.get(); }
 
-    public KeyLister(AmazonS3Client client, MirrorContext context, int maxQueueCapacity, String bucket, String prefix) {
-        this.client = client;
+    public KeyLister(MirrorContext context, int maxQueueCapacity, AmazonS3 client, String bucket, String prefix) {
         this.context = context;
+        this.client = client;
         this.maxQueueCapacity = maxQueueCapacity;
 
         final MirrorOptions options = context.getOptions();
@@ -34,7 +34,7 @@ public class KeyLister implements Runnable {
         this.summaries = new ArrayList<S3ObjectSummary>(10*fetchSize);
 
         final ListObjectsRequest request = new ListObjectsRequest(bucket, prefix, null, null, fetchSize);
-        listing = s3getFirstBatch(client, request);
+        listing = s3getFirstBatch(request);
         synchronized (summaries) {
             final List<S3ObjectSummary> objectSummaries = listing.getObjectSummaries();
             summaries.addAll(objectSummaries);
@@ -83,7 +83,7 @@ public class KeyLister implements Runnable {
         }
     }
 
-    private ObjectListing s3getFirstBatch(AmazonS3Client client, ListObjectsRequest request) {
+    private ObjectListing s3getFirstBatch(ListObjectsRequest request) {
 
         final MirrorOptions options = context.getOptions();
         final boolean verbose = options.isVerbose();

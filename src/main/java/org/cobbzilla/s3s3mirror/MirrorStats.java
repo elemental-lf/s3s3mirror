@@ -31,6 +31,7 @@ public class MirrorStats {
     public final AtomicLong s3copyCount = new AtomicLong(0);
     public final AtomicLong s3deleteCount = new AtomicLong(0);
     public final AtomicLong s3getCount = new AtomicLong(0);
+    public final AtomicLong s3putCount = new AtomicLong(0);
     public final AtomicLong bytesCopied = new AtomicLong(0);
 
     public static final long HOUR = TimeUnit.HOURS.toMillis(1);
@@ -55,6 +56,7 @@ public class MirrorStats {
                 + "delete rate: "+deleteRate+"/minute\n"
                 + "bytes copied: "+formatBytes(bytesCopied.get())+"\n"
                 + "GET operations: "+s3getCount+"\n"
+                + "PUT operations: "+s3putCount+"\n"
                 + "COPY operations: "+ s3copyCount+"\n"
                 + "DELETE operations: "+ s3deleteCount+"\n";
     }

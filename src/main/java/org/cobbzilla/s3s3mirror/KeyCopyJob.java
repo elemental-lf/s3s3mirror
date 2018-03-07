@@ -1,10 +1,11 @@
 package org.cobbzilla.s3s3mirror;
 
-import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.*;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 
+import java.io.InputStream;
 import java.util.Date;
 
 /**
@@ -12,17 +13,16 @@ import java.util.Date;
  */
 @Slf4j
 public class KeyCopyJob extends KeyJob {
-
     protected String keydest;
 
-    public KeyCopyJob(AmazonS3Client client, MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
-        super(client, context, summary, notifyLock);
+    public KeyCopyJob(MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
+        super(context, summary, notifyLock);
 
         keydest = summary.getKey();
         final MirrorOptions options = context.getOptions();
-        if (options.hasDestPrefix()) {
-            keydest = keydest.substring(options.getPrefixLength());
-            keydest = options.getDestPrefix() + keydest;
+        if (options.hasDestinationPrefix()) {
+            keydest = keydest.substring(options.getSourcePrefixLength());
+            keydest = options.getDestinationPrefix() + keydest;
         }
     }
 
@@ -34,13 +34,11 @@ public class KeyCopyJob extends KeyJob {
         final String key = summary.getKey();
         try {
             if (!shouldTransfer()) return;
-            final ObjectMetadata sourceMetadata = getObjectMetadata(options.getSourceBucket(), key, options);
-            final AccessControlList objectAcl = getAccessControlList(options, key);
 
             if (options.isDryRun()) {
                 log.info("Would have copied " + key + " to destination: " + keydest);
             } else {
-                if (keyCopied(sourceMetadata, objectAcl)) {
+                if (keyCopied()) {
                     context.getStats().objectsCopied.incrementAndGet();
                 } else {
                     context.getStats().copyErrors.incrementAndGet();
@@ -48,7 +46,6 @@ public class KeyCopyJob extends KeyJob {
             }
         } catch (Exception e) {
             log.error("error copying key: " + key + ": " + e);
-
         } finally {
             synchronized (notifyLock) {
                 notifyLock.notifyAll();
@@ -57,38 +54,80 @@ public class KeyCopyJob extends KeyJob {
         }
     }
 
-    boolean keyCopied(ObjectMetadata sourceMetadata, AccessControlList objectAcl) {
+    boolean keyCopied() {
         String key = summary.getKey();
         MirrorOptions options = context.getOptions();
         boolean verbose = options.isVerbose();
         int maxRetries= options.getMaxRetries();
         MirrorStats stats = context.getStats();
+
+        final ObjectMetadata sourceMetadata;
+        try {
+            sourceMetadata = getSourceObjectMetadata(key);
+        } catch (Exception e) {
+            log.error("error getting metadata for key: " + key + ": " + e);
+            return false;
+        }
+        if (verbose) logMetadata("source", sourceMetadata);
+		final ObjectMetadata destinationMetadata = buildDestinationMetadata(sourceMetadata);
+        if (verbose) logMetadata("destination ", destinationMetadata);
+
         for (int tries = 0; tries < maxRetries; tries++) {
             if (verbose) log.info("copying (try #" + tries + "): " + key + " to: " + keydest);
-            final CopyObjectRequest request = new CopyObjectRequest(options.getSourceBucket(), key, options.getDestinationBucket(), keydest);
             
-            request.setStorageClass(StorageClass.valueOf(options.getStorageClass()));
-            
-            if (options.isEncrypt()) {
-				request.putCustomRequestHeader("x-amz-server-side-encryption", "AES256");
-			}
-            
-            request.setNewObjectMetadata(sourceMetadata);
-            if (options.isCrossAccountCopy()) {
-                request.setCannedAccessControlList(CannedAccessControlList.BucketOwnerFullControl);
-            } else {
-                request.setAccessControlList(objectAcl);
-            }
             try {
-                stats.s3copyCount.incrementAndGet();
-                client.copyObject(request);
-                stats.bytesCopied.addAndGet(sourceMetadata.getContentLength());
-                if (verbose) log.info("successfully copied (on try #" + tries + "): " + key + " to: " + keydest);
-                return true;
+            	if (useCopy()) {
+            		final CopyObjectRequest copyRequest = new CopyObjectRequest(options.getSourceBucket(), key, options.getDestinationBucket(), keydest)
+            											  .withStorageClass(StorageClass.valueOf(options.getStorageClass()))
+            											  .withNewObjectMetadata(destinationMetadata);
+
+                    setupSSEEncryption(copyRequest, context.getSourceSSEKey(), context.getDestinationSSEKey());
+
+                    if (options.isCrossAccountCopy()) {
+                        copyRequest.setCannedAccessControlList(CannedAccessControlList.BucketOwnerFullControl);
+                    } else {
+                        AccessControlList objectAcl;
+
+                        try {
+                            objectAcl = getSourceAccessControlList(key);
+                        } catch (Exception e) {
+                            log.error("error getting ACL for key: " + key + ": " + e);
+                            return false;
+                        }
+
+                        copyRequest.setAccessControlList(objectAcl);
+                    }
+                    
+                    stats.s3copyCount.incrementAndGet();
+                    context.getSourceClient().copyObject(copyRequest);
+            	} else {        		
+
+            		final GetObjectRequest getRequest =  new GetObjectRequest(options.getSourceBucket(), key);
+
+                    setupSSEEncryption(getRequest, context.getSourceSSEKey());
+
+                    stats.s3getCount.incrementAndGet();
+            		S3Object object = context.getSourceClient().getObject(getRequest);
+                    @Cleanup InputStream objectStream = object.getObjectContent();
+
+            		final PutObjectRequest putRequest = new PutObjectRequest(options.getDestinationBucket(), keydest, objectStream, destinationMetadata)
+            												.withCannedAcl(CannedAccessControlList.BucketOwnerFullControl)
+            												.withStorageClass(StorageClass.valueOf(options.getStorageClass()));
+
+                    setupSSEEncryption(putRequest, context.getDestinationSSEKey());
+
+            		stats.s3putCount.incrementAndGet();
+                    context.getDestinationClient().putObject(putRequest);
+            	}
+
+            	stats.bytesCopied.addAndGet(getRealObjectSize(sourceMetadata));
+                if (verbose) log.info("successfully copied (on try #" + tries + "): " + key + " to " + keydest);
+                
+                return true;               	
             } catch (AmazonS3Exception s3e) {
-                log.error("s3 exception copying (try #" + tries + ") " + key + " to: " + keydest + ": " + s3e);
+                log.error("s3 exception copying (try #" + tries + ") " + key + " to " + keydest + ": " + s3e);
             } catch (Exception e) {
-                log.error("unexpected exception copying (try #" + tries + ") " + key + " to: " + keydest + ": " + e);
+                log.error("unexpected exception copying (try #" + tries + ") " + key + " to " + keydest + ": " + e);
             }
             try {
                 Thread.sleep(10);
@@ -117,9 +156,10 @@ public class KeyCopyJob extends KeyJob {
                 }
             }
         }
-        final ObjectMetadata metadata;
+
+        final ObjectMetadata destinationMetadata;
         try {
-            metadata = getObjectMetadata(options.getDestinationBucket(), keydest, options);
+            destinationMetadata = getDestinationObjectMetadata(keydest);
         } catch (AmazonS3Exception e) {
             if (e.getStatusCode() == 404) {
                 if (verbose) log.info("Key not found in destination bucket (will copy): "+ keydest);
@@ -133,28 +173,18 @@ public class KeyCopyJob extends KeyJob {
             return false;
         }
 
-        if (summary.getSize() > MirrorOptions.MAX_SINGLE_REQUEST_UPLOAD_FILE_SIZE) {
-            return metadata.getContentLength() != summary.getSize();
-        }
-        final boolean objectChanged = objectChanged(metadata);
+        final boolean objectChanged = objectChanged(destinationMetadata);
         if (verbose && !objectChanged) log.info("Destination file is same as source, not copying: "+ key);
 
         return objectChanged;
     }
 
     boolean objectChanged(ObjectMetadata metadata) {
-        final MirrorOptions options = context.getOptions();
-        final KeyFingerprint sourceFingerprint;
-        final KeyFingerprint destFingerprint;
-        
-        if (options.isSizeOnly()) {
-            sourceFingerprint = new KeyFingerprint(summary.getSize());
-            destFingerprint = new KeyFingerprint(metadata.getContentLength());
-        } else {
-            sourceFingerprint = new KeyFingerprint(summary.getSize(), summary.getETag());
-            destFingerprint = new KeyFingerprint(metadata.getContentLength(), metadata.getETag());
-        }
+        return summary.getSize() != getRealObjectSize(metadata);
+    }
 
-        return !sourceFingerprint.equals(destFingerprint);
+    boolean useCopy() {
+        return context.getSourceClient() == context.getDestinationClient()
+                && !MirrorEncryption.isCSE(context.getOptions().getSourceProfile().getEncryption());
     }
 }

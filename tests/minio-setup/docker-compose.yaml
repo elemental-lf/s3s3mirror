@@ -1,0 +1,30 @@
+version: '2'
+
+services:
+ minio1:
+  image: minio/minio:edge
+  volumes:
+    - ./certs/:/root/.minio/certs/:z
+  ports:
+   - "9901:9000"
+  environment:
+   MINIO_ACCESS_KEY: minio
+   MINIO_SECRET_KEY: minio123
+  command: gateway nas /data
+  networks:
+    - s3s3mirror-tests
+ minio2:
+  image: minio/minio:edge
+  volumes:
+    - ./certs/:/root/.minio/certs/:z
+  ports:
+   - "9902:9000"
+  environment:
+   MINIO_ACCESS_KEY: minio
+   MINIO_SECRET_KEY: minio123
+  command: gateway nas /data
+  networks:
+    - s3s3mirror-tests
+
+networks:
+  s3s3mirror-tests:
