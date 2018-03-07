@@ -129,7 +129,7 @@ public class MirrorMain {
                 return AmazonS3EncryptionClientBuilder
                         .standard()
                         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
-                        .withPathStyleAccessEnabled(true)
+                        .withPathStyleAccessEnabled(profile.isPathStyleAccess())
                         .withClientConfiguration(clientConfiguration)
                         .withCredentials(new AWSStaticCredentialsProvider(profile))
                         .withCryptoConfiguration(new CryptoConfiguration(cryptoMode))
@@ -139,7 +139,7 @@ public class MirrorMain {
                 return AmazonS3ClientBuilder
                         .standard()
                         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
-                        .withPathStyleAccessEnabled(true)
+                        .withPathStyleAccessEnabled(profile.isPathStyleAccess())
                         .withClientConfiguration(clientConfiguration)
                         .withCredentials(new AWSStaticCredentialsProvider(profile))
                         .build();
@@ -212,8 +212,10 @@ public class MirrorMain {
                 profile.setEndpoint(line.substring(line.indexOf("=") + 1).trim());
             } else if (line.matches("^encryption\\s*=.*")){
                 profile.setEncryption(line.substring(line.indexOf("=") + 1).trim());
-            } else if (line.matches("^encryption_key\\s*=.*")){
+            } else if (line.matches("^encryption_key\\s*=.*")) {
                 profile.setEncryptionKey(line.substring(line.indexOf("=") + 1).trim());
+            } else if (line.matches("^path_style_access\\s*=.*")) {
+                profile.setPathStyleAccess(Boolean.parseBoolean(line.substring(line.indexOf("=") + 1).trim()));
             }
         }
     }

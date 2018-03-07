@@ -68,7 +68,8 @@ public class MirrorTest {
     public String DESTINATION = "to-bucket";
 
     private String[] getStandardArgs() {
-        String args[] = {LONGOPT_DISABLE_CERT_CHECK, OPT_VERBOSE, OPT_SOURCE_PROFILE, SOURCE_PROFILE, OPT_DESTINATION_PROFILE, DESTINATION_PROFILE};
+        String args[] = {LONGOPT_DISABLE_CERT_CHECK, OPT_VERBOSE, OPT_SOURCE_PROFILE, SOURCE_PROFILE,
+                            OPT_DESTINATION_PROFILE, DESTINATION_PROFILE};
         return args;
     }
 
