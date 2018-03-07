@@ -1,9 +1,11 @@
 package org.cobbzilla.s3s3mirror;
 
 import com.amazonaws.services.s3.model.*;
+import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 
+import java.io.InputStream;
 import java.util.Date;
 
 /**
@@ -67,18 +69,16 @@ public class KeyCopyJob extends KeyJob {
             return false;
         }
         if (verbose) logMetadata("source", sourceMetadata);
-		final ObjectMetadata destinationMetadata = sourceMetadata.clone();
-
-		adjustDestinationMetadata(destinationMetadata);
-        if (verbose) logMetadata("destination (after adjust)", destinationMetadata);
+		final ObjectMetadata destinationMetadata = buildDestinationMetadata(sourceMetadata);
+        if (verbose) logMetadata("destination ", destinationMetadata);
 
         for (int tries = 0; tries < maxRetries; tries++) {
             if (verbose) log.info("copying (try #" + tries + "): " + key + " to: " + keydest);
             
             try {
-            	if (isSameClientConnection()) {
+            	if (useCopy()) {
             		final CopyObjectRequest copyRequest = new CopyObjectRequest(options.getSourceBucket(), key, options.getDestinationBucket(), keydest)
-            											  .withStorageClass(options.getStorageClass())
+            											  .withStorageClass(StorageClass.valueOf(options.getStorageClass()))
             											  .withNewObjectMetadata(destinationMetadata);
 
                     setupSSEEncryption(copyRequest, context.getSourceSSEKey(), context.getDestinationSSEKey());
@@ -108,8 +108,9 @@ public class KeyCopyJob extends KeyJob {
 
                     stats.s3getCount.incrementAndGet();
             		S3Object object = context.getSourceClient().getObject(getRequest);
+                    @Cleanup InputStream objectStream = object.getObjectContent();
 
-            		final PutObjectRequest putRequest = new PutObjectRequest(options.getDestinationBucket(), keydest, object.getObjectContent(), destinationMetadata)
+            		final PutObjectRequest putRequest = new PutObjectRequest(options.getDestinationBucket(), keydest, objectStream, destinationMetadata)
             												.withCannedAcl(CannedAccessControlList.BucketOwnerFullControl)
             												.withStorageClass(StorageClass.valueOf(options.getStorageClass()));
 
@@ -117,9 +118,8 @@ public class KeyCopyJob extends KeyJob {
 
             		stats.s3putCount.incrementAndGet();
                     context.getDestinationClient().putObject(putRequest);
-                    object.getObjectContent().close();
             	}
-            	
+
             	stats.bytesCopied.addAndGet(getRealObjectSize(sourceMetadata));
                 if (verbose) log.info("successfully copied (on try #" + tries + "): " + key + " to " + keydest);
                 
@@ -181,5 +181,10 @@ public class KeyCopyJob extends KeyJob {
 
     boolean objectChanged(ObjectMetadata metadata) {
         return summary.getSize() != getRealObjectSize(metadata);
+    }
+
+    boolean useCopy() {
+        return context.getSourceClient() == context.getDestinationClient()
+                && !MirrorEncryption.isCSE(context.getOptions().getSourceProfile().getEncryption());
     }
 }

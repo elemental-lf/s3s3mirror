@@ -19,7 +19,6 @@ public class MirrorProfile implements AWSCredentials {
     // Our fields
     @Getter @Setter private String name;
     @Getter @Setter private String endpoint;
-    @Getter @Setter private boolean pathStyleAccess = false;
 
     @Getter @Setter public String proxyHost = null;
     @Getter @Setter public int proxyPort = -1;
@@ -63,8 +62,6 @@ public class MirrorProfile implements AWSCredentials {
 
         switch (encryption) {
             case NONE:
-            case SSE_S3:
-            case SSE_KMS_DFK:
                 break;
             case CSE_AES_256:
             case CSE_AES_GCM_256:

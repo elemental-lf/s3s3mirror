@@ -66,9 +66,12 @@ public class MirrorTest {
 
     public String SOURCE = "from-bucket";
     public String DESTINATION = "to-bucket";
+    public int MULTI_PART_UPLOAD_SIZE = 5242880;
 
     private String[] getStandardArgs() {
-        String args[] = {LONGOPT_DISABLE_CERT_CHECK, OPT_VERBOSE, OPT_SOURCE_PROFILE, SOURCE_PROFILE,
+        String args[] = {LONGOPT_DISABLE_CERT_CHECK, OPT_VERBOSE,
+                            LONGOPT_MULTI_PART_UPLOAD_SIZE, Integer.toString(MULTI_PART_UPLOAD_SIZE),
+                            OPT_SOURCE_PROFILE, SOURCE_PROFILE,
                             OPT_DESTINATION_PROFILE, DESTINATION_PROFILE};
         return args;
     }
@@ -126,6 +129,7 @@ public class MirrorTest {
         String[] completedArgs = ArrayUtils.addAll(getStandardArgs(), args);
         main = new MirrorMain(completedArgs);
         main.init();
+        main.getOptions().setMaxSingleRequestUploadSize(MULTI_PART_UPLOAD_SIZE);
 
         final TestObject testFile = createTestObject(key, Copy.SOURCE, Clean.SOURCE_AND_DESTINATION);
 
@@ -165,6 +169,7 @@ public class MirrorTest {
         String[] completedArgs = ArrayUtils.addAll(getStandardArgs(), args);
         main = new MirrorMain(completedArgs);
         main.init();
+        main.getOptions().setMaxSingleRequestUploadSize(MULTI_PART_UPLOAD_SIZE);
 
         final TestObject testFile = createTestObject(key, Copy.SOURCE, Clean.SOURCE_AND_DESTINATION);
 
@@ -192,6 +197,7 @@ public class MirrorTest {
                 OPT_DELETE_REMOVED, SOURCE, DESTINATION});
         main = new MirrorMain(args);
         main.init();
+        main.getOptions().setMaxSingleRequestUploadSize(MULTI_PART_UPLOAD_SIZE);
 
         // Write some files to dest
         final int numDestFiles = 3;

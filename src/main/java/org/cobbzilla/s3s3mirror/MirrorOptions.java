@@ -132,15 +132,13 @@ public class MirrorOptions {
     /**
      * Current max file size allowed in amazon is 5 GB. We can try and provide this as an option too.
      */
-    public static final long MAX_SINGLE_REQUEST_UPLOAD_FILE_SIZE = 5 * GB;
-    private static final long DEFAULT_PART_SIZE = 4 * GB;
-    private static final String MULTI_PART_UPLOAD_SIZE_USAGE = "The upload size (in bytes) of each part uploaded as part of a multipart request " +
-            "for files that are greater than the max allowed file size of " + MAX_SINGLE_REQUEST_UPLOAD_FILE_SIZE + " bytes ("+(MAX_SINGLE_REQUEST_UPLOAD_FILE_SIZE/GB)+"GB). " +
-            "Defaults to " + DEFAULT_PART_SIZE + " bytes ("+(DEFAULT_PART_SIZE/GB)+"GB).";
+    @Getter @Setter private long maxSingleRequestUploadSize = 5 * GB;
+
+    private static final String MULTI_PART_UPLOAD_SIZE_USAGE = "The upload size (in bytes) of each part uploaded as part of a multipart request";
     private static final String OPT_MULTI_PART_UPLOAD_SIZE = "-u";
-    private static final String LONGOPT_MULTI_PART_UPLOAD_SIZE = "--upload-part-size";
+    public static final String LONGOPT_MULTI_PART_UPLOAD_SIZE = "--upload-part-size";
     @Option(name=OPT_MULTI_PART_UPLOAD_SIZE, aliases=LONGOPT_MULTI_PART_UPLOAD_SIZE, usage=MULTI_PART_UPLOAD_SIZE_USAGE)
-    @Getter @Setter private long uploadPartSize = DEFAULT_PART_SIZE;
+    @Getter @Setter private long uploadPartSize = 4 * GB;
 
     private static final String CROSS_ACCOUNT_USAGE ="Copy across AWS accounts. Only Resource-based policies are supported (as " +
             "specified by AWS documentation) for cross account copying. " +
@@ -154,7 +152,7 @@ public class MirrorOptions {
     @Getter private MirrorProfile sourceProfile = new MirrorProfile();
     @Getter @Setter private MirrorProfile destinationProfile = new MirrorProfile();
 
-    public static final String USAGE_DISABLE_CERT_CHECK = "Disable checking of TLS certificates";
+    private static final String USAGE_DISABLE_CERT_CHECK = "Disable checking of TLS certificates";
     public static final String LONGOPT_DISABLE_CERT_CHECK = "--disable-cert-check";
     @Option(name=LONGOPT_DISABLE_CERT_CHECK, usage=USAGE_DISABLE_CERT_CHECK)
     @Getter @Setter private boolean disableCertCheck = false;

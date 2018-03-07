@@ -129,7 +129,7 @@ public class MirrorMain {
                 return AmazonS3EncryptionClientBuilder
                         .standard()
                         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
-                        .withPathStyleAccessEnabled(profile.isPathStyleAccess())
+                        .withPathStyleAccessEnabled(true)
                         .withClientConfiguration(clientConfiguration)
                         .withCredentials(new AWSStaticCredentialsProvider(profile))
                         .withCryptoConfiguration(new CryptoConfiguration(cryptoMode))
@@ -139,7 +139,7 @@ public class MirrorMain {
                 return AmazonS3ClientBuilder
                         .standard()
                         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
-                        .withPathStyleAccessEnabled(profile.isPathStyleAccess())
+                        .withPathStyleAccessEnabled(true)
                         .withClientConfiguration(clientConfiguration)
                         .withCredentials(new AWSStaticCredentialsProvider(profile))
                         .build();
@@ -189,33 +189,31 @@ public class MirrorMain {
         String line;
         boolean skipSection = true;
         while ((line = reader.readLine()) != null) {
-        	line = line.trim();
-        	if (line.startsWith("[")) {
-        		if (line.equals("[" + profile.getName() + "]")) {
-        			skipSection = false;
-        		} else {
-        			skipSection = true;
-        		}
-        		continue;
-        	}
-        	if (skipSection) continue;
-        	      	
+            line = line.trim();
+            if (line.startsWith("[")) {
+                if (line.equals("[" + profile.getName() + "]")) {
+                    skipSection = false;
+                } else {
+                    skipSection = true;
+                }
+                continue;
+            }
+            if (skipSection) continue;
+
             if (line.matches("^access_key\\s*=.*")) {
                 profile.setAWSAccessKeyId(line.substring(line.indexOf("=") + 1).trim());
             } else if (line.matches("^access_token\\s*=.*")) {
                 profile.setAWSSecretKey(line.substring(line.indexOf("=") + 1).trim());
             } else if (line.matches("^proxy_host\\s*=.*")) {
                 profile.setProxyHost(line.substring(line.indexOf("=") + 1).trim());
-            } else if (line.matches("^proxy_port\\s*=.*")){
+            } else if (line.matches("^proxy_port\\s*=.*")) {
                 profile.setProxyPort(Integer.parseInt(line.substring(line.indexOf("=") + 1).trim()));
-            } else if (line.matches("^website_endpoint\\s*=.*")){
+            } else if (line.matches("^website_endpoint\\s*=.*")) {
                 profile.setEndpoint(line.substring(line.indexOf("=") + 1).trim());
-            } else if (line.matches("^encryption\\s*=.*")){
+            } else if (line.matches("^encryption\\s*=.*")) {
                 profile.setEncryption(line.substring(line.indexOf("=") + 1).trim());
             } else if (line.matches("^encryption_key\\s*=.*")) {
                 profile.setEncryptionKey(line.substring(line.indexOf("=") + 1).trim());
-            } else if (line.matches("^path_style_access\\s*=.*")) {
-                profile.setPathStyleAccess(Boolean.parseBoolean(line.substring(line.indexOf("=") + 1).trim()));
             }
         }
     }

@@ -1,3 +1,23 @@
+Fork of s3s3mirror
+==================
+
+This fork is based on https://github.com/cobbzilla/s3s3mirror/tree/master. It supports using different client
+connections for the source and destination buckets for example when mirroring from one S3 compatible storage to another.
+It also adds on-the-fly encryption, decryption and reencryption. The following encryption algorithms are supported:
+
+- SSE-C
+- CSE AES-256
+- CSE AES/GCM-256
+- CSE AES/GCM-256 (in strict mode)
+
+For generating the master key a custom key derivation function based on PBKDF2 and SHA-256 is used.  The salt is constant!
+For compatibility with existing applications the KDF, rounds and salt should probably be made configurable.
+
+It was tested with OpenJDK 1.8 and most of the dependencies have been updated. The test suite runs successfully using a
+Minio endpoint.
+
+All endpoint configuration is now done in an .s3cfg file which I have slightly extended. See tests/.s3cfg for examples.
+
 s3s3mirror
 ==========
 

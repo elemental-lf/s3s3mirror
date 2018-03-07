@@ -3,6 +3,7 @@ package org.cobbzilla.s3s3mirror;
 import com.amazonaws.services.s3.model.*;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -32,17 +33,16 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
         }
         long objectSize = getRealObjectSize(sourceMetadata);
         if (verbose) logMetadata("source", sourceMetadata);
-        final ObjectMetadata destinationMetadata = sourceMetadata.clone();
-        adjustDestinationMetadata(destinationMetadata);
+        final ObjectMetadata destinationMetadata = buildDestinationMetadata(sourceMetadata);
         if (verbose) {
-            logMetadata("destination (after adjust)", destinationMetadata);
+            logMetadata("destination", destinationMetadata);
 
             log.info("Initiating multipart upload request for " + summary.getKey());
         }
 
         InitiateMultipartUploadRequest initiateRequest = new InitiateMultipartUploadRequest(destinationBucket, keydest)
                                                             .withObjectMetadata(destinationMetadata)
-                                                            .withStorageClass(options.getStorageClass());
+                                                            .withStorageClass(StorageClass.valueOf(options.getStorageClass()));
 
         if (options.isCrossAccountCopy() || (context.getSourceClient() != context.getDestinationClient())) {
             initiateRequest.withCannedACL(CannedAccessControlList.BucketOwnerFullControl);
@@ -59,6 +59,8 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
             initiateRequest.setAccessControlList(objectAcl);
         }
 
+        setupSSEEncryption(initiateRequest, context.getDestinationSSEKey());
+
         InitiateMultipartUploadResult initResult = context.getDestinationClient().initiateMultipartUpload(initiateRequest);
 
         List<PartETag> partETags = new ArrayList<PartETag>();
@@ -66,7 +68,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
         long bytePosition = 0;
         String infoMessage;
       
-        if (isSameClientConnection()) {
+        if (useCopy()) {
             for (int i = 1; bytePosition < objectSize; i++) {
             	long lastByte = Math.min(objectSize - 1, bytePosition + partSize - 1);
             	long currentPartSize = Math.min(objectSize - bytePosition, partSize);
@@ -78,6 +80,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                 							  .withDestinationBucketName(destinationBucket)
                 							  .withDestinationKey(keydest)
                 							  .withSourceBucketName(sourceBucket)
+                                              .withSourceKey(key)
                 							  .withUploadId(initResult.getUploadId())
                 							  .withFirstByte(bytePosition)
                 							  .withLastByte(lastByte)
@@ -108,12 +111,13 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                 bytePosition += partSize;
             }
         } else {
-            final GetObjectRequest getRequest =  new GetObjectRequest(options.getSourceBucket(), key);
+            final GetObjectRequest getRequest =  new GetObjectRequest(sourceBucket, key);
 
             setupSSEEncryption(getRequest, context.getSourceSSEKey());
 
             stats.s3getCount.incrementAndGet();
-            S3Object object = context.getSourceClient().getObject(getRequest); 
+            S3Object object = context.getSourceClient().getObject(getRequest);
+            InputStream objectStream = object.getObjectContent();
 
             /*
              * If performance at this point becomes a problem we'll have to look into replacing this with
@@ -123,17 +127,20 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
             for (int i = 1; bytePosition < objectSize; i++) {
             	long lastByte = Math.min(objectSize - 1, bytePosition + partSize - 1);
             	long currentPartSize = Math.min(objectSize - bytePosition, partSize);
+            	boolean isLast = (bytePosition + partSize) >= objectSize;
                     		
-        		infoMessage = "uploading : " + bytePosition + " to " + lastByte + " (partSize " + currentPartSize + ")";
+        		infoMessage = "uploading : " + bytePosition + " to " + lastByte + " (partSize " + currentPartSize
+                        + ", isLast " + isLast + ")";
                 if (verbose) log.info(infoMessage);
 
 	            UploadPartRequest uploadRequest = new UploadPartRequest()
 	            		                             .withBucketName(destinationBucket)
 	            		                             .withKey(keydest)
 	            		                             .withUploadId(initResult.getUploadId())
-	            		                             .withInputStream(object.getObjectContent())
+	            		                             .withInputStream(objectStream)
 	            		                             .withPartSize(currentPartSize)
-	            		                             .withPartNumber(i);
+	            		                             .withPartNumber(i)
+	                                                 .withLastPart(isLast);
 
                 setupSSEEncryption(uploadRequest, context.getDestinationSSEKey());
             	
@@ -152,11 +159,6 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                             context.getDestinationClient().abortMultipartUpload(new AbortMultipartUploadRequest(
                                     destinationBucket, keydest, initResult.getUploadId()));
                             log.error("Exception while doing multipart copy", e);
-                            try {
-                            	object.getObjectContent().close();
-                            } catch (Exception e2) {
-                            	log.error("Exception while trying to close input data stream", e2);
-                            }
                             return false;
                         }
                     }
@@ -164,12 +166,12 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                 
                 bytePosition += partSize;
             }
-            
+
             try {
-            	object.getObjectContent().close();
+                objectStream.close();
             } catch (Exception e) {
-            	log.error("Exception while trying to close input data stream", e);
-            	return false;
+                log.error("Exception while trying to close input data stream", e);
+                return false;
             }
         }
         

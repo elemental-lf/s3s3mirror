@@ -1,6 +1,7 @@
 package org.cobbzilla.s3s3mirror;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.Headers;
 import com.amazonaws.services.s3.model.*;
 import lombok.Cleanup;
 import lombok.SneakyThrows;
@@ -12,7 +13,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
+import java.util.HashMap;
 import java.util.Map;
 
 @Slf4j
@@ -63,7 +64,7 @@ public abstract class KeyJob implements Runnable {
         }
         throw ex;
     }
-    
+
     protected ObjectMetadata getSourceObjectMetadata(String key) throws Exception {
     	return getObjectMetadata(context.getSourceClient(), context.getSourceSSEKey(),
                 context.getOptions().getSourceBucket(), key);
@@ -72,7 +73,7 @@ public abstract class KeyJob implements Runnable {
     protected ObjectMetadata getDestinationObjectMetadata(String key) throws Exception {
     	return getObjectMetadata(context.getDestinationClient(), context.getDestinationSSEKey(),
                 context.getOptions().getDestinationBucket(), key);
-    }     
+    }
 
     private AccessControlList getAccessControlList(AmazonS3 client, SSECustomerKey sseKey, String bucket, String key) throws Exception {
         MirrorOptions options = context.getOptions();
@@ -109,7 +110,7 @@ public abstract class KeyJob implements Runnable {
         }
         throw ex;
     }
-    
+
     protected AccessControlList getSourceAccessControlList(String key) throws Exception {
     	return this.getAccessControlList(context.getSourceClient(), context.getSourceSSEKey(), context.getOptions().getSourceBucket(), key);
     }
@@ -132,76 +133,58 @@ public abstract class KeyJob implements Runnable {
         log.info(metadataString);
     }
 
-    /*
-       This does two things: For CSE it searches for the unencrypted length of the object, so that we can correct the
-       Content-Length which includes the encryption overhead. The X-Amz-Unencrypted-Content-Length is created when the
-       object is uploaded. Then it removes all user metadata entries which we don't need in the destination object
-       anymore and which might even confuse some users and programs. This is relevant at least when CSE is in use at the
-       source side as some special headers are used for storing the CEK, IV, etc. Last it enables SSE if requested.
+    protected ObjectMetadata buildDestinationMetadata(ObjectMetadata sourceMetadata) {
+        ObjectMetadata destinationMetadata = new ObjectMetadata();
 
-       At the time of writing the Amazon CSE uses the following headers:
+        if (sourceMetadata.getContentType() != null) destinationMetadata.setContentType(sourceMetadata.getContentType());
+        if (sourceMetadata.getCacheControl() != null) destinationMetadata.setCacheControl(sourceMetadata.getCacheControl());
+        if (sourceMetadata.getContentEncoding() != null) destinationMetadata.setContentEncoding(sourceMetadata.getContentEncoding());
+        if (sourceMetadata.getContentLanguage() != null) destinationMetadata.setContentLanguage(sourceMetadata.getContentLanguage());
+        if (sourceMetadata.getContentDisposition() != null) destinationMetadata.setContentDisposition(sourceMetadata.getContentDisposition());
+        if (sourceMetadata.getHttpExpiresDate() != null) destinationMetadata.setHttpExpiresDate(sourceMetadata.getHttpExpiresDate());
 
-       X-Amz-Meta-X-Amz-Key-V2
-       X-Amz-Meta-X-Amz-Wrap-Alg
-       X-Amz-Meta-X-Amz-Unencrypted-Content-Length
-       X-Amz-Meta-X-Amz-Cek-Alg
-       X-Amz-Meta-X-Amz-Tag-Len
-       X-Amz-Meta-X-Amz-Iv
-       X-Amz-Meta-X-Amz-Matdesc
+        MirrorEncryption destinationEncryption = context.getOptions().getDestinationProfile().getEncryption();
 
-       For a description of the keys see:
-       https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/s3/package-summary.html
+        HashMap<String, String> userMetadataMap = new HashMap<String,String>();
+        String length = null;
 
-       This document also list the following additional headers used by CSE v1:
-
-       X-Amz-Key
-
-       X-Amz-Meta-X-Amz-Unencrypted-Content-Length is marked as optional but in https://github.com/aws/aws-sdk-java/issues/1057
-       an Amazon developer says that it should always be there when using the AWS Java SDK to create the object. Keeping
-       fingers crossed as we really need it.
-
-     */
-    protected void adjustDestinationMetadata(ObjectMetadata metadata) {
-        if (!isSameClientConnection()) {
-            Map<String, String> userMetadataMap = metadata.getUserMetadata();
-            String length = null;
-
-            for (Iterator<Map.Entry<String, String>> it = userMetadataMap.entrySet().iterator(); it.hasNext(); ) {
-                Map.Entry<String, String> entry = it.next();
-
-                if (length == null && entry.getKey().toLowerCase().equals("x-amz-unencrypted-content-length")) {
-                    length = new String(entry.getValue());
-                }
-
-                if (entry.getKey().matches(USER_METADATA_CLEANUP_REGEXP)) {
-                    it.remove();
-                }
+        for (Map.Entry<String,String> entry: sourceMetadata.getUserMetadata().entrySet()) {
+            if (length == null && entry.getKey().toLowerCase().equals("x-amz-unencrypted-content-length")) {
+                length = new String(entry.getValue());
             }
 
-            metadata.setUserMetadata(userMetadataMap);
-
-            if (length != null) {
-                if (context.getOptions().isVerbose())
-                    log.info("adjusting Content-Length from " + metadata.getContentLength() +
-                            " to " + length);
-                metadata.setContentLength(Long.parseLong(length));
+            if (!entry.getKey().matches(USER_METADATA_CLEANUP_REGEXP)) {
+                userMetadataMap.put(entry.getKey(), entry.getValue());
             }
         }
 
-        if (context.getOptions().getDestinationProfile().getEncryption() == MirrorEncryption.SSE_S3) {
-            metadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+        destinationMetadata.setUserMetadata(userMetadataMap);
+
+        if (length != null) {
+            if (context.getOptions().isVerbose())
+                log.info("adjusting Content-Length from " + sourceMetadata.getContentLength() +
+                        " to " + length);
+            destinationMetadata.setContentLength(Long.parseLong(length));
+        } else {
+            destinationMetadata.setContentLength(sourceMetadata.getContentLength());
         }
+
+        if (MirrorEncryption.isCSE(destinationEncryption)) {
+            // The AWS SDK sometimes doesn't set this header -> always set it here as a workaround
+            destinationMetadata.addUserMetadata(Headers.UNENCRYPTED_CONTENT_LENGTH, Long.toString(destinationMetadata.getContentLength()));
+        } else if (MirrorEncryption.isSSE(destinationEncryption)) {
+            destinationMetadata.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
+        }
+
+        return destinationMetadata;
     }
 
     protected static long getRealObjectSize(ObjectMetadata metadata) {
-        Map<String,String> userMetadataMap = metadata.getUserMetadata();
         String length = null;
 
-        for (Iterator<Map.Entry<String,String>> it = userMetadataMap.entrySet().iterator(); it.hasNext(); ) {
-            Map.Entry<String, String> entry = it.next();
-
+        for (Map.Entry<String,String> entry: metadata.getUserMetadata().entrySet()) {
             if (entry.getKey().toLowerCase().equals("x-amz-unencrypted-content-length")) {
-                length = entry.getValue();
+                length = new String(entry.getValue());
                 break;
             }
         }
@@ -217,8 +200,8 @@ public abstract class KeyJob implements Runnable {
         if (key != null) request.setSSECustomerKey(key);
     }
 
-    protected void setupSSEEncryption(PutObjectRequest request, SSECustomerKey sseKey) {
-        if (sseKey != null) request.setSSECustomerKey(sseKey);
+    protected void setupSSEEncryption(PutObjectRequest request, SSECustomerKey key) {
+        if (key != null) request.setSSECustomerKey(key);
     }
 
     protected void setupSSEEncryption(CopyObjectRequest request, SSECustomerKey sourceKey, SSECustomerKey destinationKey) {
@@ -231,11 +214,11 @@ public abstract class KeyJob implements Runnable {
         if (destinationKey != null) request.setDestinationSSECustomerKey(destinationKey);
     }
 
-    protected void setupSSEEncryption(UploadPartRequest request, SSECustomerKey key) {
+    protected void setupSSEEncryption(InitiateMultipartUploadRequest request, SSECustomerKey key) {
         if (key != null) request.setSSECustomerKey(key);
     }
 
-    boolean isSameClientConnection() {
-        return context.getSourceClient() == context.getDestinationClient();
+    protected void setupSSEEncryption(UploadPartRequest request, SSECustomerKey key) {
+        if (key != null) request.setSSECustomerKey(key);
     }
 }

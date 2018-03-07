@@ -17,7 +17,7 @@ public class CopyMaster extends KeyMaster {
     protected String getBucket(MirrorOptions options) { return options.getSourceBucket(); }
 
     protected KeyCopyJob getTask(S3ObjectSummary summary) {
-        if (summary.getSize() > MirrorOptions.MAX_SINGLE_REQUEST_UPLOAD_FILE_SIZE) {
+        if (summary.getSize() > context.getOptions().getMaxSingleRequestUploadSize()) {
             return new MultipartKeyCopyJob(context, summary, notifyLock);
         }
         return new KeyCopyJob(context, summary, notifyLock);
