@@ -132,6 +132,7 @@ public class MirrorTest {
         main.getOptions().setMaxSingleRequestUploadSize(MULTI_PART_UPLOAD_SIZE);
 
         final TestObject testFile = createTestObject(key, Copy.SOURCE, Clean.SOURCE_AND_DESTINATION);
+        log.info("testFile.data.length() " + testFile.data.length());
 
         main.run();
 

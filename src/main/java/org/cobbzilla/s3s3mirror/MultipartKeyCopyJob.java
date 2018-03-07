@@ -44,7 +44,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                                                             .withObjectMetadata(destinationMetadata)
                                                             .withStorageClass(StorageClass.valueOf(options.getStorageClass()));
 
-        if (options.isCrossAccountCopy() || (context.getSourceClient() != context.getDestinationClient())) {
+        if (options.isCrossAccountCopy() || !useCopy()) {
             initiateRequest.withCannedACL(CannedAccessControlList.BucketOwnerFullControl);
         } else {
             AccessControlList objectAcl;
