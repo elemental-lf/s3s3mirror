@@ -62,7 +62,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
         InitiateMultipartUploadResult initResult = context.getDestinationClient().initiateMultipartUpload(initiateRequest);
 
         List<PartETag> partETags = new ArrayList<PartETag>();
-        long partSize = Math.max(options.getUploadPartSize(), (long)Math.pow(2.0, 20.0));
+        long partSize = options.getUploadPartSize();
         long bytePosition = 0;
         String infoMessage;
       
