@@ -133,4 +133,11 @@ public class MirrorMainTest {
         main.parseArguments();
         assertEquals(MirrorProfile.deriveKey("test789"), main.getOptions().getSourceProfile().getEncryptionKey());
     }
+
+    @Test
+    public void testEncryptionOption() throws Exception {
+        final MirrorMain main = new MirrorMain(ArrayUtils.addAll(STANDARD_ARGUMENTS, new String[]{SOURCE, DESTINATION}));
+        main.parseArguments();
+        assertEquals(MirrorEncryption.CSE_AES_GCM_256_STRICT, main.getOptions().getSourceProfile().getEncryption());
+    }
 }
