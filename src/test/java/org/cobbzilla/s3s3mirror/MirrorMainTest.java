@@ -119,4 +119,18 @@ public class MirrorMainTest {
         assertEquals("proxy.example.com", main.getOptions().getDestinationProfile().getProxyHost());
         assertEquals(1234, main.getOptions().getDestinationProfile().getProxyPort());
     }
+
+    @Test
+    public void testExternalAccessToken() throws Exception {
+        final MirrorMain main = new MirrorMain(ArrayUtils.addAll(STANDARD_ARGUMENTS, new String[]{SOURCE, DESTINATION}));
+        main.parseArguments();
+        assertEquals("minio123", main.getOptions().getSourceProfile().getAWSSecretKey());
+    }
+
+    @Test
+    public void testExternalEncryptionKey() throws Exception {
+        final MirrorMain main = new MirrorMain(ArrayUtils.addAll(STANDARD_ARGUMENTS, new String[]{SOURCE, DESTINATION}));
+        main.parseArguments();
+        assertEquals(MirrorProfile.deriveKey("test789"), main.getOptions().getSourceProfile().getEncryptionKey());
+    }
 }

@@ -18,8 +18,12 @@ import org.kohsuke.args4j.CmdLineParser;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 import static com.amazonaws.SDKGlobalConfiguration.DISABLE_CERT_CHECKING_SYSTEM_PROPERTY;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Provides the "main" method. Responsible for parsing options and setting up the MirrorMaster to manage the copy.
@@ -177,6 +181,13 @@ public class MirrorMain {
         options.initDerivedFields();
     }
 
+    // Credit: https://stackoverflow.com/questions/326390/how-do-i-create-a-java-string-from-the-contents-of-a-file
+    private static String readFile(String path) throws IOException
+    {
+        byte[] encoded = Files.readAllBytes(Paths.get(path));
+        return new String(encoded, UTF_8);
+    }
+
     private void loadAwsKeysFromS3Config(MirrorProfile profile) throws Exception {
         String s3CfgPath = System.getenv("S3CFG");
         if (s3CfgPath == null) {
@@ -204,6 +215,9 @@ public class MirrorMain {
                 profile.setAWSAccessKeyId(line.substring(line.indexOf("=") + 1).trim());
             } else if (line.matches("^access_token\\s*=.*")) {
                 profile.setAWSSecretKey(line.substring(line.indexOf("=") + 1).trim());
+            } else if (line.matches("^access_token_path\\s*=.*")) {
+                String accessTokenPath = line.substring(line.indexOf("=") + 1).trim();
+                profile.setAWSSecretKey(readFile(accessTokenPath));
             } else if (line.matches("^proxy_host\\s*=.*")) {
                 profile.setProxyHost(line.substring(line.indexOf("=") + 1).trim());
             } else if (line.matches("^proxy_port\\s*=.*")) {
@@ -214,6 +228,9 @@ public class MirrorMain {
                 profile.setEncryption(line.substring(line.indexOf("=") + 1).trim());
             } else if (line.matches("^encryption_key\\s*=.*")) {
                 profile.setEncryptionKey(line.substring(line.indexOf("=") + 1).trim());
+            } else if (line.matches("^encryption_key_path\\s*=.*")) {
+                String encryptionKeyPath = line.substring(line.indexOf("=") + 1).trim();
+                profile.setEncryptionKey(readFile(encryptionKeyPath));
             }
         }
     }

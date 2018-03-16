@@ -34,7 +34,7 @@ public class MirrorProfile implements AWSCredentials {
         }
     }
 
-    public void setEncryptionKey(String passphrase) {
+    public static SecretKey deriveKey(String passphrase) {
         // This isn't ideal. But I don't see a good way to save a randomly generated salt somewhere.
         final byte[] salt = {(byte) 154, (byte) 146, (byte) 100, (byte) 145, (byte) 154, (byte) 145, (byte) 155,
                 (byte) 145, (byte) 156, (byte) 164, (byte) 141, (byte) 154, (byte) 056, (byte) 156, (byte) 145, (byte) 164};
@@ -43,10 +43,14 @@ public class MirrorProfile implements AWSCredentials {
             SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
             KeySpec spec = new PBEKeySpec(passphrase.toCharArray(), salt, 65536, 256);
             SecretKey derivedKey = factory.generateSecret(spec);
-            encryptionKey = new SecretKeySpec(derivedKey.getEncoded(), "AES");
+            return new SecretKeySpec(derivedKey.getEncoded(), "AES");
         } catch (Exception e) {
             throw new IllegalStateException("Could not derive key", e);
         }
+    }
+
+    public void setEncryptionKey(String passphrase) {
+        encryptionKey = deriveKey(passphrase);
     }
 
     public boolean hasProxy() {
