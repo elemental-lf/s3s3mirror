@@ -3,8 +3,7 @@ package org.cobbzilla.s3s3mirror;
 import org.apache.commons.lang3.ArrayUtils;
 import org.junit.Test;
 
-import static org.cobbzilla.s3s3mirror.MirrorOptions.OPT_DESTINATION_PROFILE;
-import static org.cobbzilla.s3s3mirror.MirrorOptions.OPT_SOURCE_PROFILE;
+import static org.cobbzilla.s3s3mirror.MirrorOptions.*;
 import static org.junit.Assert.*;
 
 public class MirrorMainTest {
@@ -14,7 +13,7 @@ public class MirrorMainTest {
     public static final String SOURCE = "from-bucket";
     public static final String DESTINATION = "to-bucket";
 
-    public static final String STANDARD_ARGUMENTS[] = {OPT_SOURCE_PROFILE, PROFILE, OPT_DESTINATION_PROFILE, PROFILE_PROXY};
+    public static final String STANDARD_ARGUMENTS[] = {LONGOPT_MAX_SINGLE_REQUEST_UPLOAD_SIZE, "123456789", OPT_SOURCE_PROFILE, PROFILE, OPT_DESTINATION_PROFILE, PROFILE_PROXY};
 
     @Test
     public void testBasicArgs() throws Exception {

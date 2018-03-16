@@ -129,15 +129,14 @@ public class MirrorOptions {
     @Argument(index=1, required=true, usage="Destination bucket with optional prefix", metaVar = "<source bucket[/source/prefix]>")
     @Getter @Setter private String destinationBucket;
 
-    /**
-     * Current max file size allowed in amazon is 5 GB. We can try and provide this as an option too.
-     */
+    private static final String MAX_SINGLE_REQUEST_UPLOAD_SIZE_USAGE = "The maximum size (in bytes) uploaded via a single request (0 means unlimited)";
+    public static final String LONGOPT_MAX_SINGLE_REQUEST_UPLOAD_SIZE = "--max-single-upload-size";
+    @Option(name=LONGOPT_MAX_SINGLE_REQUEST_UPLOAD_SIZE, usage=MAX_SINGLE_REQUEST_UPLOAD_SIZE_USAGE)
     @Getter @Setter private long maxSingleRequestUploadSize = 5 * GB;
 
     private static final String MULTI_PART_UPLOAD_SIZE_USAGE = "The upload size (in bytes) of each part uploaded as part of a multipart request";
-    private static final String OPT_MULTI_PART_UPLOAD_SIZE = "-u";
     public static final String LONGOPT_MULTI_PART_UPLOAD_SIZE = "--upload-part-size";
-    @Option(name=OPT_MULTI_PART_UPLOAD_SIZE, aliases=LONGOPT_MULTI_PART_UPLOAD_SIZE, usage=MULTI_PART_UPLOAD_SIZE_USAGE)
+    @Option(name=LONGOPT_MULTI_PART_UPLOAD_SIZE, usage=MULTI_PART_UPLOAD_SIZE_USAGE)
     @Getter @Setter private long uploadPartSize = 4 * GB;
 
     private static final String CROSS_ACCOUNT_USAGE ="Copy across AWS accounts. Only Resource-based policies are supported (as " +
