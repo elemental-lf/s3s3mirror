@@ -1,6 +1,7 @@
 package org.cobbzilla.s3s3mirror;
 
 import com.amazonaws.auth.AWSCredentials;
+import com.amazonaws.regions.Regions;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -15,6 +16,8 @@ public class MirrorProfile implements AWSCredentials {
     // These are for AWSCredentials
     @Getter @Setter private String aWSAccessKeyId;
     @Getter @Setter private String aWSSecretKey;
+    @Getter @Setter private String signerType;
+    @Getter @Setter private String region = Regions.US_EAST_1.name();
 
     // Our fields
     @Getter @Setter private String name;

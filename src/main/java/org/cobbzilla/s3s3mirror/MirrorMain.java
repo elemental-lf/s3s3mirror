@@ -99,18 +99,21 @@ public class MirrorMain {
     }
 
 	protected AmazonS3 getAmazonS3Client(MirrorProfile profile) {
+        if (!profile.isValid()) {
+            throw new IllegalStateException("Profile is invalid");
+        }
+
         ClientConfiguration clientConfiguration = new ClientConfiguration()
                 .withProtocol(profile.getEndpoint().startsWith("https:") ? Protocol.HTTPS : Protocol.HTTP)
                 .withMaxConnections(options.getMaxConnections());
 
-        if (profile.hasProxy()) {
-            clientConfiguration = clientConfiguration
-                    .withProxyHost(profile.getProxyHost())
-                    .withProxyPort(profile.getProxyPort());
+        if (profile.getSignerType() != null) {
+            clientConfiguration.setSignerOverride(profile.getSignerType());
         }
-              
-        if (!profile.isValid()) {
-            throw new IllegalStateException("Profile is invalid");
+
+        if (profile.hasProxy()) {
+            clientConfiguration.setProxyHost(profile.getProxyHost());
+            clientConfiguration.setProxyPort(profile.getProxyPort());
         }
 
         switch (profile.getEncryption()) {
@@ -132,7 +135,7 @@ public class MirrorMain {
 
                 return AmazonS3EncryptionClientBuilder
                         .standard()
-                        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
+                        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), profile.getRegion()))
                         .withPathStyleAccessEnabled(true)
                         .withClientConfiguration(clientConfiguration)
                         .withCredentials(new AWSStaticCredentialsProvider(profile))
@@ -231,6 +234,14 @@ public class MirrorMain {
             } else if (line.matches("^encryption_key_path\\s*=.*")) {
                 String encryptionKeyPath = line.substring(line.indexOf("=") + 1).trim();
                 profile.setEncryptionKey(readFile(encryptionKeyPath));
+            } else if (line.matches("^signer_type\\s*=.*")) {
+                profile.setSignerType(line.substring(line.indexOf("=") + 1).trim());
+            } else if (line.matches("^region\\s*=.*")) {
+                profile.setRegion(line.substring(line.indexOf("=") + 1).trim());
+            } else if (line.matches("^\\s*#.*")) {
+                continue;
+            } else {
+                throw new IllegalStateException("unknown line: " + line);
             }
         }
     }

@@ -37,17 +37,11 @@ public class MirrorTest {
         List<String> destinationProfiles;
         List<Integer> sizes;
 
-        if (false) {
-            sourceProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C");
-            destinationProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C",
-                    "MirrorTest-2", "MirrorTest-2-CSE_AES_GCM_256_STRICT", "MirrorTest-2-SSE_C");
-            sizes = Arrays.asList(12 * 1024);
-        } else {
-            sourceProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C");
-            destinationProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C",
-                    "MirrorTest-2", "MirrorTest-2-CSE_AES_GCM_256_STRICT", "MirrorTest-2-SSE_C");
-            sizes = Arrays.asList(12 * 1024, 12 * 1024 * 1024);
-        }
+        sourceProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C",
+                "MirrorTest-3");
+        destinationProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C",
+                "MirrorTest-2", "MirrorTest-2-CSE_AES_GCM_256_STRICT", "MirrorTest-2-SSE_C", "MirrorTest-3");
+        sizes = Arrays.asList(12 * 1024, 12 * 1024 * 1024);
 
         for (int size: sizes) {
             for (String sourceProfile : sourceProfiles) {
