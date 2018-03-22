@@ -1,2 +1,14 @@
-**
-!Dockerfile
+.git
+.gitignore
+*.iml
+.idea
+tmp
+logs
+dependency-reduced-pom.xml
+*~
+target
+!target/*.jar
+*.log
+.settings
+.classpath
+.project
