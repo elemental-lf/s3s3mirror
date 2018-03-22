@@ -1,0 +1,31 @@
+s3s3mirror:
+  image:
+    repository: elementalnet/s3s3mirror
+    tag: 0.6
+    pullPolicy: IfNotPresent
+
+  verbose: false
+  schedule: "30 * * * *"
+
+  # Use 5GB (expressed in bytes) for AWS S3
+  # Google has no support for multipart upload, so set it to 0 to always use PUT
+  maxSingleUploadSize: 0
+
+  source:
+    endpoint: "https://minio:1234"
+    accessKey: "********"
+    secretKey: "********"
+    encryption: SSE_C
+    encryptionKey: "********"
+    bucket: "source-bucket"
+    # region: ... (optional)
+    # signerType: ... (optinal)
+  destination:
+    endpoint: "https://minio:1234"
+    accessKey: "********"
+    secretKey: "********"
+    encryption: CSE_AES_GCM_256_STRICT|SSE_C
+    encryptionKey: "********"
+    bucket: "destination-bucket"
+    # region: ... (optional)
+    # signerType: ... (optional)

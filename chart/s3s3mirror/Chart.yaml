@@ -1,0 +1,4 @@
+apiVersion: v1
+description: s3s3mirror cronjob
+name: s3s3mirror
+version: 0.1.0

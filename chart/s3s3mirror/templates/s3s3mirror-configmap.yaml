@@ -1,0 +1,40 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "s3s3mirror.fullname" . }}
+  labels:
+    app: {{ template "s3s3mirror.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  .s3cfg: |
+    [source]
+    access_key = {{ .Values.s3s3mirror.source.accessKey }}
+    access_token_path = /s3cfg-secret/sourceSecretKey
+    website_endpoint = {{ .Values.s3s3mirror.source.endpoint }}
+{{- if .Values.s3s3mirror.source.encryption }}
+    encryption = {{ .Values.s3s3mirror.source.encryption }}
+    encryption_key_path = /s3cfg-secret/sourceEncryptionKey
+{{- end }}
+{{- if .Values.s3s3mirror.source.region }}
+    region = {{ .Values.s3s3mirror.source.region }}
+{{- end }}
+{{- if .Values.s3s3mirror.source.signerType }}
+    signer_type = {{ .Values.s3s3mirror.source.signerType }}
+{{- end }}
+    [destination]
+    access_key = {{ .Values.s3s3mirror.destination.accessKey }}
+    access_token_path = /s3cfg-secret/destinationSecretKey
+    website_endpoint = {{ .Values.s3s3mirror.destination.endpoint }}
+{{- if .Values.s3s3mirror.destination.encryption }}
+    encryption = {{ .Values.s3s3mirror.destination.encryption }}
+    encryption_key_path = /s3cfg-secret/destinationEncryptionKey
+{{- end }}
+{{- if .Values.s3s3mirror.destination.region }}
+    region = {{ .Values.s3s3mirror.destination.region }}
+{{- end }}
+{{- if .Values.s3s3mirror.destination.signerType }}
+    signer_type = {{ .Values.s3s3mirror.destination.signerType }}
+{{- end }}

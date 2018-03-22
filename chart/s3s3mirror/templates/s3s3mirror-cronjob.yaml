@@ -1,0 +1,55 @@
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: {{ template "s3s3mirror.fullname" . }}
+  labels:
+    app: {{ template "s3s3mirror.name" . }}
+    chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  schedule: {{ .Values.s3s3mirror.schedule | quote }}
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        metadata:
+          name: {{ template "s3s3mirror.fullname" . }}
+          labels:
+            app: {{ template "s3s3mirror.name" . }}
+            release: {{ .Release.Name }}
+        spec:
+          imagePullSecrets:
+            - name:  docker-registry-secret
+          restartPolicy: Never
+          containers:
+            - image: {{ .Values.s3s3mirror.image.repository }}:{{ .Values.s3s3mirror.image.tag }}
+              imagePullPolicy: {{ .Values.s3s3mirror.image.pullPolicy }}
+              name:  {{ .Chart.Name }}
+              args:
+{{- if .Values.s3s3mirror.verbose }}
+                - "--verbose"
+{{- end }}
+                - "--max-single-upload-size={{ .Values.s3s3mirror.maxSingleUploadSize }}"
+                - "--source-profile=source"
+                - "--destination-profile=destination"
+                - "{{ .Values.s3s3mirror.source.bucket }}"
+                - "{{ .Values.s3s3mirror.destination.bucket }}"
+              env:
+                - name: S3CFG
+                  value: /s3cfg/.s3cfg
+              volumeMounts:
+                - name: s3cfg
+                  mountPath: "/s3cfg"
+                  readOnly: true
+                - name: s3cfg-secret
+                  mountPath: "/s3cfg-secret"
+                  readOnly: true
+          volumes:
+            - name: s3cfg
+              configMap:
+                name: {{ template "s3s3mirror.fullname" . }}
+            - name: s3cfg-secret
+              secret:
+                secretName: {{ template "s3s3mirror.fullname" . }}
