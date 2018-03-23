@@ -40,7 +40,7 @@ public class MirrorProfile implements AWSCredentials {
     public static SecretKey deriveKey(String passphrase) {
         // This isn't ideal. But I don't see a good way to save a randomly generated salt somewhere.
         final byte[] salt = {(byte) 154, (byte) 146, (byte) 100, (byte) 145, (byte) 154, (byte) 145, (byte) 155,
-                (byte) 145, (byte) 156, (byte) 164, (byte) 141, (byte) 154, (byte) 056, (byte) 156, (byte) 145, (byte) 164};
+                (byte) 145, (byte) 156, (byte) 164, (byte) 141, (byte) 154, (byte) 46, (byte) 156, (byte) 145, (byte) 164};
 
         try {
             SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
