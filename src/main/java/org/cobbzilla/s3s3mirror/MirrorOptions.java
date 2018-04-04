@@ -90,31 +90,6 @@ public class MirrorOptions {
     @Getter @Setter private String ctime = null;
     public boolean hasCtime() { return ctime != null; }
 
-    private long initMaxAge() {
-
-        DateTime dateTime = new DateTime(nowTime);
-
-        // all digits -- assume "days"
-        if (ctime.matches("^[0-9]+$")) return dateTime.minusDays(Integer.parseInt(ctime)).getMillis();
-
-        // ensure there is at least one digit, and exactly one character suffix, and the suffix is a legal option
-        if (!ctime.matches("^[0-9]+[yMwdhms]$")) throw new IllegalArgumentException("Invalid option for ctime: "+ctime);
-
-        if (ctime.endsWith("y")) return dateTime.minusYears(getCtimeNumber(ctime)).getMillis();
-        if (ctime.endsWith("M")) return dateTime.minusMonths(getCtimeNumber(ctime)).getMillis();
-        if (ctime.endsWith("w")) return dateTime.minusWeeks(getCtimeNumber(ctime)).getMillis();
-        if (ctime.endsWith("d")) return dateTime.minusDays(getCtimeNumber(ctime)).getMillis();
-        if (ctime.endsWith("h")) return dateTime.minusHours(getCtimeNumber(ctime)).getMillis();
-        if (ctime.endsWith("m")) return dateTime.minusMinutes(getCtimeNumber(ctime)).getMillis();
-        if (ctime.endsWith("s")) return dateTime.minusSeconds(getCtimeNumber(ctime)).getMillis();
-        throw new IllegalArgumentException("Invalid option for ctime: "+ctime);
-    }
-
-    private int getCtimeNumber(String ctime) {
-        return Integer.parseInt(ctime.substring(0, ctime.length() - 1));
-    }
-
-    @Getter private long nowTime = System.currentTimeMillis();
     @Getter private long maxAge;
     @Getter private String maxAgeDate;
 
@@ -155,6 +130,32 @@ public class MirrorOptions {
     public static final String LONGOPT_DISABLE_CERT_CHECK = "--disable-cert-check";
     @Option(name=LONGOPT_DISABLE_CERT_CHECK, usage=USAGE_DISABLE_CERT_CHECK)
     @Getter @Setter private boolean disableCertCheck = false;
+
+    @Getter private long nowTime = System.currentTimeMillis();
+
+    private long initMaxAge() {
+
+        DateTime dateTime = new DateTime(nowTime);
+
+        // all digits -- assume "days"
+        if (ctime.matches("^[0-9]+$")) return dateTime.minusDays(Integer.parseInt(ctime)).getMillis();
+
+        // ensure there is at least one digit, and exactly one character suffix, and the suffix is a legal option
+        if (!ctime.matches("^[0-9]+[yMwdhms]$")) throw new IllegalArgumentException("Invalid option for ctime: "+ctime);
+
+        if (ctime.endsWith("y")) return dateTime.minusYears(getCtimeNumber(ctime)).getMillis();
+        if (ctime.endsWith("M")) return dateTime.minusMonths(getCtimeNumber(ctime)).getMillis();
+        if (ctime.endsWith("w")) return dateTime.minusWeeks(getCtimeNumber(ctime)).getMillis();
+        if (ctime.endsWith("d")) return dateTime.minusDays(getCtimeNumber(ctime)).getMillis();
+        if (ctime.endsWith("h")) return dateTime.minusHours(getCtimeNumber(ctime)).getMillis();
+        if (ctime.endsWith("m")) return dateTime.minusMinutes(getCtimeNumber(ctime)).getMillis();
+        if (ctime.endsWith("s")) return dateTime.minusSeconds(getCtimeNumber(ctime)).getMillis();
+        throw new IllegalArgumentException("Invalid option for ctime: "+ctime);
+    }
+
+    private int getCtimeNumber(String ctime) {
+        return Integer.parseInt(ctime.substring(0, ctime.length() - 1));
+    }
 
     public void initDerivedFields() {
 
