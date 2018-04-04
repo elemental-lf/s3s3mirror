@@ -3,7 +3,6 @@ package org.cobbzilla.s3s3mirror;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.DeleteObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 
@@ -12,7 +11,7 @@ public class KeyDeleteJob extends KeyJob {
 
     private String keysrc;
 
-    public KeyDeleteJob (MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
+    public KeyDeleteJob (MirrorContext context, KeyObjectSummary summary, Object notifyLock) {
         super(context, summary, notifyLock);
 
         final MirrorOptions options = context.getOptions();

@@ -22,10 +22,10 @@ public abstract class KeyJob implements Runnable {
     final String USER_METADATA_CLEANUP_REGEXP = "(?i:^X-Amz-.*$)";
 
     protected final MirrorContext context;
-    protected final S3ObjectSummary summary;
+    protected final KeyObjectSummary summary;
     protected final Object notifyLock;
 
-    public KeyJob(MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
+    public KeyJob(MirrorContext context, KeyObjectSummary summary, Object notifyLock) {
         this.context = context;
         this.summary = summary;
         this.notifyLock = notifyLock;

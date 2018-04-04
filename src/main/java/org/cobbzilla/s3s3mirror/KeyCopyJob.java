@@ -15,7 +15,7 @@ import java.util.Date;
 public class KeyCopyJob extends KeyJob {
     protected String keydest;
 
-    public KeyCopyJob(MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
+    public KeyCopyJob(MirrorContext context, KeyObjectSummary summary, Object notifyLock) {
         super(context, summary, notifyLock);
 
         keydest = summary.getKey();

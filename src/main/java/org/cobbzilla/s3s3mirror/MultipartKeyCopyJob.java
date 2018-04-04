@@ -10,7 +10,7 @@ import java.util.List;
 @Slf4j
 public class MultipartKeyCopyJob extends KeyCopyJob {
 
-    public MultipartKeyCopyJob(MirrorContext context, S3ObjectSummary summary, Object notifyLock) {
+    public MultipartKeyCopyJob(MirrorContext context, KeyObjectSummary summary, Object notifyLock) {
         super(context, summary, notifyLock);
     }
 

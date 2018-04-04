@@ -141,10 +141,10 @@ public class KeyLister implements Runnable {
         }
     }
 
-    public List<S3ObjectSummary> getNextBatch() {
-        List<S3ObjectSummary> copy;
+    public List<KeyObjectSummary> getNextBatch() {
+        List<KeyObjectSummary> copy;
         synchronized (summaries) {
-            copy = new ArrayList<S3ObjectSummary>(summaries);
+            copy = KeyObjectSummary.S3ObjectSummaryToKeyObject(summaries);
             summaries.clear();
         }
         return copy;

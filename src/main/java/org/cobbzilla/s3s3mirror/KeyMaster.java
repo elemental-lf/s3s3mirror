@@ -1,7 +1,6 @@
 package org.cobbzilla.s3s3mirror;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -37,7 +36,7 @@ public abstract class KeyMaster implements Runnable {
     protected abstract String getPrefix(MirrorOptions options);
     protected abstract String getBucket(MirrorOptions options);
 
-    protected abstract KeyJob getTask(S3ObjectSummary summary);
+    protected abstract KeyJob getTask(KeyObjectSummary summary);
 
     public void start () {
         this.thread = new Thread(this);
@@ -80,11 +79,11 @@ public abstract class KeyMaster implements Runnable {
             final KeyLister lister = new KeyLister(context, maxQueueCapacity, getClient(), getBucket(options), getPrefix(options));
             executorService.submit(lister);
 
-            List<S3ObjectSummary> summaries = lister.getNextBatch();
+            List<KeyObjectSummary> summaries = lister.getNextBatch();
             if (verbose) log.info(summaries.size()+" keys found in first batch from bucket -- processing...");
 
             while (true) {
-                for (S3ObjectSummary summary : summaries) {
+                for (KeyObjectSummary summary : summaries) {
                     while (workQueue.size() >= maxQueueCapacity) {
                         try {
                             synchronized (notifyLock) {
