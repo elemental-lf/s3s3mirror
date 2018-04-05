@@ -22,8 +22,8 @@ public class KeyObjectSummary implements Serializable {
     @Getter @Setter private String storageClass;
     @Getter @Setter private Owner owner;
     @Getter @Setter private String versionId;
-    @Getter @Setter private boolean deleteMarker;
-    @Getter @Setter private boolean latest;
+    @Getter @Setter private boolean deleteMarker = false;
+    @Getter @Setter private boolean latest = true;
 
     private static Function<S3ObjectSummary, KeyObjectSummary> S3ObjectSummaryToKeyObjectSummaryFunction
             = new Function<S3ObjectSummary, KeyObjectSummary>() {

@@ -12,6 +12,7 @@ public class DeleteMaster extends KeyMaster {
     }
 
     protected AmazonS3 getClient() { return context.getDestinationClient(); }
+    protected MirrorProfile getProfile(MirrorOptions options) { return context.getOptions().getDestinationProfile(); }
 
     protected String getPrefix(MirrorOptions options) {
         return options.hasDestinationPrefix() ? options.getDestinationPrefix() : options.getSourcePrefix();

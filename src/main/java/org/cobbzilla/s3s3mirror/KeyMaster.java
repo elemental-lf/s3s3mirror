@@ -1,6 +1,8 @@
 package org.cobbzilla.s3s3mirror;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.BucketVersioningConfiguration;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -33,6 +35,7 @@ public abstract class KeyMaster implements Runnable {
     }
 
     protected abstract AmazonS3 getClient();
+    protected abstract MirrorProfile getProfile(MirrorOptions options);
     protected abstract String getPrefix(MirrorOptions options);
     protected abstract String getBucket(MirrorOptions options);
 
@@ -76,7 +79,27 @@ public abstract class KeyMaster implements Runnable {
 
         int counter = 0;
         try {
-            final KeyLister lister = new KeyLister(context, maxQueueCapacity, getClient(), getBucket(options), getPrefix(options));
+            boolean useKeyVersionLister = false;
+
+            if (false) {
+                try {
+                    BucketVersioningConfiguration versioning = getClient().getBucketVersioningConfiguration(getBucket(options));
+
+                    if (versioning.getStatus().equals("Enabled")) {
+                        useKeyVersionLister = true;
+                        if (verbose) log.info("Using KeyVersionLister for " + getProfile(options).getEndpoint() + "/" + getBucket(options));
+                    }
+                } catch (AmazonS3Exception e) {
+                    useKeyVersionLister = false;
+                }
+            }
+
+            KeyLister lister;
+            if (useKeyVersionLister) {
+                lister = new KeyVersionLister(context, maxQueueCapacity, getClient(), getBucket(options), getPrefix(options));
+            } else {
+                lister = new KeyObjectLister(context, maxQueueCapacity, getClient(), getBucket(options), getPrefix(options));
+            }
             executorService.submit(lister);
 
             List<KeyObjectSummary> summaries = lister.getNextBatch();

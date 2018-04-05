@@ -12,6 +12,7 @@ public class CopyMaster extends KeyMaster {
     }
 
     protected AmazonS3 getClient() { return context.getSourceClient(); }
+    protected MirrorProfile getProfile(MirrorOptions options) { return context.getOptions().getSourceProfile(); }
     protected String getPrefix(MirrorOptions options) { return options.getSourcePrefix(); }
     protected String getBucket(MirrorOptions options) { return options.getSourceBucket(); }
 
