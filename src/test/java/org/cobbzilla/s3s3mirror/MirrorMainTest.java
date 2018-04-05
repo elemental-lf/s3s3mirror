@@ -139,4 +139,12 @@ public class MirrorMainTest {
         main.parseArguments();
         assertEquals(MirrorEncryption.CSE_AES_GCM_256_STRICT, main.getOptions().getSourceProfile().getEncryption());
     }
+
+    @Test
+    public void testQuirks() throws Exception {
+        final MirrorMain main = new MirrorMain(ArrayUtils.addAll(STANDARD_ARGUMENTS, new String[]{SOURCE, DESTINATION}));
+        main.parseArguments();
+        assertTrue(main.getOptions().getSourceProfile().hasQuirk(MirrorProfileQuirks.NO_ENCODING_TYPE));
+        assertFalse(main.getOptions().getSourceProfile().hasQuirk(MirrorProfileQuirks.PATH_STYLE_ACCESS));
+    }
 }

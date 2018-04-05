@@ -10,6 +10,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.spec.KeySpec;
+import java.util.ArrayList;
 
 public class MirrorProfile implements AWSCredentials {
 
@@ -28,6 +29,8 @@ public class MirrorProfile implements AWSCredentials {
 
     @Getter private MirrorEncryption encryption = MirrorEncryption.NONE;
     @Getter private SecretKey encryptionKey = null;
+
+    @Getter private ArrayList<MirrorProfileQuirks> quirks = new ArrayList<MirrorProfileQuirks>();
 
     public void setEncryption(String encryptionName) {
         try {
@@ -82,6 +85,14 @@ public class MirrorProfile implements AWSCredentials {
         }
 
         return valid;
+    }
+
+    public void addQuirk(MirrorProfileQuirks quirk) {
+        quirks.add(quirk);
+    }
+
+    public boolean hasQuirk(MirrorProfileQuirks quirk) {
+        return quirks.contains(quirk);
     }
 
     public boolean equals(MirrorProfile otherProfile) {

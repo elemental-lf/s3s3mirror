@@ -88,17 +88,21 @@ public abstract class KeyMaster implements Runnable {
                     if (versioning.getStatus().equals("Enabled")) {
                         useKeyVersionLister = true;
                         if (verbose) log.info("Using KeyVersionLister for " + getProfile(options).getEndpoint() + "/" + getBucket(options));
+                    } else {
+                        if (verbose) log.info("BucketVersioningConfiguration for " + getProfile(options).getEndpoint()
+                                + "/" + getBucket(options) + " is " + versioning.getStatus());
                     }
                 } catch (AmazonS3Exception e) {
+                    log.error("getBucketVersioningConfiguration failed: " + e);
                     useKeyVersionLister = false;
                 }
             }
 
             KeyLister lister;
             if (useKeyVersionLister) {
-                lister = new KeyVersionLister(context, maxQueueCapacity, getClient(), getBucket(options), getPrefix(options));
+                lister = new KeyVersionLister(context, maxQueueCapacity, getProfile(options), getClient(), getBucket(options), getPrefix(options));
             } else {
-                lister = new KeyObjectLister(context, maxQueueCapacity, getClient(), getBucket(options), getPrefix(options));
+                lister = new KeyObjectLister(context, maxQueueCapacity, getProfile(options), getClient(), getBucket(options), getPrefix(options));
             }
             executorService.submit(lister);
 
