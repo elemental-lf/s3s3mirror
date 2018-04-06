@@ -1,8 +1,6 @@
 package org.cobbzilla.s3s3mirror;
 
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.BucketVersioningConfiguration;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.List;
@@ -79,6 +77,7 @@ public abstract class KeyMaster implements Runnable {
 
         int counter = 0;
         try {
+            /*
             boolean useKeyVersionLister = false;
 
             if (false) {
@@ -97,13 +96,9 @@ public abstract class KeyMaster implements Runnable {
                     useKeyVersionLister = false;
                 }
             }
+            */
 
-            KeyLister lister;
-            if (useKeyVersionLister) {
-                lister = new KeyVersionLister(context, maxQueueCapacity, getProfile(options), getClient(), getBucket(options), getPrefix(options));
-            } else {
-                lister = new KeyObjectLister(context, maxQueueCapacity, getProfile(options), getClient(), getBucket(options), getPrefix(options));
-            }
+            KeyLister lister = new KeyObjectLister(context, maxQueueCapacity, getProfile(options), getClient(), getBucket(options), getPrefix(options));
             executorService.submit(lister);
 
             List<KeyObjectSummary> summaries = lister.getNextBatch();
