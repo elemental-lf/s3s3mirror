@@ -10,3 +10,5 @@ target
 .settings
 .classpath
 .project
+tests/google-access-key
+tests/google-access-token

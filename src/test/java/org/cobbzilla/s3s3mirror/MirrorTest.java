@@ -29,24 +29,51 @@ import static org.junit.Assert.fail;
 
 @Slf4j @RunWith(Parameterized.class)
 public class MirrorTest {
-    @Parameters(name = "{0} to {1} (size {2})")
+    @Parameters(name = "{0}/{1} to {2}/{3} (size {4})")
     public static Collection<Object[]> data() {
         ArrayList<Object[]> list = new ArrayList<Object[]>();
 
         List<String> sourceProfiles;
         List<String> destinationProfiles;
-        List<Integer> sizes;
+        String sourceBucket;
+        String destinationBucket;
+        int uploadPartSize;
 
-        sourceProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C",
-                "MirrorTest-3");
-        destinationProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C",
-                "MirrorTest-2", "MirrorTest-2-CSE_AES_GCM_256_STRICT", "MirrorTest-2-SSE_C", "MirrorTest-3");
-        sizes = Arrays.asList(12 * 1024, 12 * 1024 * 1024);
+        List<String> testProfiles = Arrays.asList("standard");
+        List<Integer> sizes = Arrays.asList(12 * 1024, 12 * 1024 * 1024);
 
-        for (int size: sizes) {
-            for (String sourceProfile : sourceProfiles) {
-                for (String destinationProfile : destinationProfiles) {
-                    list.add(new Object[] {sourceProfile, destinationProfile, size});
+        for(String testProfile: testProfiles) {
+            if (testProfile.equals("standard")) {
+                sourceProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C",
+                        "MirrorTest-3");
+                destinationProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C",
+                        "MirrorTest-2", "MirrorTest-2-CSE_AES_GCM_256_STRICT", "MirrorTest-2-SSE_C", "MirrorTest-3");
+
+                sourceBucket = "from-bucket";
+                destinationBucket = "to-bucket";
+                uploadPartSize = 5242880;
+            } else if (testProfile.equals("to-google")) {
+                sourceProfiles = Arrays.asList("MirrorTest-1");
+                destinationProfiles = Arrays.asList("Google");
+                sourceBucket = "from-bucket";
+                destinationBucket = "umg-de-alpha-s3s3mirror-test";
+                uploadPartSize = 0;
+            } else if (testProfile.equals("from-google")) {
+                sourceProfiles = Arrays.asList("Google");
+                destinationProfiles = Arrays.asList("MirrorTest-1");
+                sourceBucket = "umg-de-alpha-s3s3mirror-test";
+                destinationBucket = "to-bucket";
+                uploadPartSize = 0;
+            } else {
+                throw new IllegalArgumentException("unknown test profile: " + testProfile);
+            }
+
+            for (int size : sizes) {
+                for (String sourceProfile : sourceProfiles) {
+                    for (String destinationProfile : destinationProfiles) {
+                        list.add(new Object[]{sourceProfile, sourceBucket,
+                                destinationProfile, destinationBucket, size, uploadPartSize});
+                    }
                 }
             }
         }
@@ -55,12 +82,11 @@ public class MirrorTest {
     }
 
     @Parameter(0) public String SOURCE_PROFILE = null;
-    @Parameter(1) public String DESTINATION_PROFILE = null;
-    @Parameter(2) public int FILE_SIZE = 0;
-
-    public String SOURCE = "from-bucket";
-    public String DESTINATION = "to-bucket";
-    public int MULTI_PART_UPLOAD_SIZE = 5242880;
+    @Parameter(1) public String SOURCE = null;
+    @Parameter(2) public String DESTINATION_PROFILE = null;
+    @Parameter(3) public String DESTINATION = null;
+    @Parameter(4) public int FILE_SIZE = 0;
+    @Parameter(5) public int MULTI_PART_UPLOAD_SIZE = 5242880;
 
     private String[] getStandardArgs() {
         String args[] = {LONGOPT_DISABLE_CERT_CHECK, OPT_VERBOSE,
