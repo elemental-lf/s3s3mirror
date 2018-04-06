@@ -216,6 +216,9 @@ public class MirrorMain {
 
             if (line.matches("^access_key\\s*=.*")) {
                 profile.setAWSAccessKeyId(line.substring(line.indexOf("=") + 1).trim());
+            } else if (line.matches("^access_key_path\\s*=.*")) {
+                String accessKeyPath = line.substring(line.indexOf("=") + 1).trim();
+                profile.setAWSAccessKeyId(readFile(accessKeyPath));
             } else if (line.matches("^access_token\\s*=.*")) {
                 profile.setAWSSecretKey(line.substring(line.indexOf("=") + 1).trim());
             } else if (line.matches("^access_token_path\\s*=.*")) {
