@@ -1,0 +1,4 @@
+[submodule "aws-sdk-java"]
+	path = aws-sdk-java
+	url = git@github.com:elemental-lf/aws-sdk-java.git
+	branch = 1.11.309-lf
