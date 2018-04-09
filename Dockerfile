@@ -3,6 +3,7 @@ FROM maven:3.5.3-jdk-8 AS build
 ADD . /build
 WORKDIR /build
 
+RUN cd aws-sdk-java/aws-java-sdk-s3 && mvn -Dgpg.skip=true install
 RUN mvn -Dmaven.test.skip=true package
 
 FROM openjdk:8u151-jre-alpine3.7 AS runtime

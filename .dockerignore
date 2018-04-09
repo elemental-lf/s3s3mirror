@@ -13,3 +13,6 @@ target
 .classpath
 .project
 chart
+aws-sdk-java/**
+!aws-sdk-java/aws-java-sdk-s3/**
+!aws-sdk-java/aws-java-sdk-bom/**
