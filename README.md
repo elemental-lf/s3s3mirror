@@ -13,8 +13,10 @@ It also adds on-the-fly encryption, decryption and reencryption. The following e
 For generating the master key a custom key derivation function based on PBKDF2 and SHA-256 is used.  The salt is constant!
 For compatibility with existing applications the KDF, rounds and salt should probably be made configurable.
 
-It was tested with OpenJDK 1.8 and most of the dependencies have been updated. The test suite runs successfully using a
-Minio endpoint.
+It was tested with OpenJDK 1.8 and most of the dependencies have been updated. The extended test suite runs mostly
+successful. There seems to be a small problem with mirroring from an SSE encrypted bucket so another SSE encrypted bucket
+which I couldn't figure out yet. The test suite was run against a Minio and a Google endpoint. The Google endpoint
+requires a special option (see tests/.s3cfg) and a patched AWS Java SDK which is included as a Git submodule.
 
 All endpoint configuration is now done in an .s3cfg file which I have slightly extended. See tests/.s3cfg for examples.
 
