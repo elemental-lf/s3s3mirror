@@ -144,7 +144,7 @@ public class MirrorMainTest {
     public void testQuirks() throws Exception {
         final MirrorMain main = new MirrorMain(ArrayUtils.addAll(STANDARD_ARGUMENTS, new String[]{SOURCE, DESTINATION}));
         main.parseArguments();
-        assertTrue(main.getOptions().getSourceProfile().hasQuirk(MirrorProfileQuirks.NO_ENCODING_TYPE));
-        assertFalse(main.getOptions().getSourceProfile().hasQuirk(MirrorProfileQuirks.PATH_STYLE_ACCESS));
+        assertTrue(main.getOptions().getSourceProfile().hasOption(MirrorProfileOptions.NO_ENCODING_TYPE));
+        assertFalse(main.getOptions().getSourceProfile().hasOption(MirrorProfileOptions.PATH_STYLE_ACCESS));
     }
 }

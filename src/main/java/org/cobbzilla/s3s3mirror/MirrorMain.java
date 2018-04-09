@@ -136,7 +136,7 @@ public class MirrorMain {
                 return AmazonS3EncryptionClientBuilder
                         .standard()
                         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), profile.getRegion()))
-                        .withPathStyleAccessEnabled(profile.hasQuirk(MirrorProfileQuirks.PATH_STYLE_ACCESS))
+                        .withPathStyleAccessEnabled(profile.hasOption(MirrorProfileOptions.PATH_STYLE_ACCESS))
                         .withClientConfiguration(clientConfiguration)
                         .withCredentials(new AWSStaticCredentialsProvider(profile))
                         .withCryptoConfiguration(new CryptoConfiguration(cryptoMode))
@@ -146,7 +146,7 @@ public class MirrorMain {
                 return AmazonS3ClientBuilder
                         .standard()
                         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
-                        .withPathStyleAccessEnabled(profile.hasQuirk(MirrorProfileQuirks.PATH_STYLE_ACCESS))
+                        .withPathStyleAccessEnabled(profile.hasOption(MirrorProfileOptions.PATH_STYLE_ACCESS))
                         .withClientConfiguration(clientConfiguration)
                         .withCredentials(new AWSStaticCredentialsProvider(profile))
                         .build();
@@ -241,10 +241,10 @@ public class MirrorMain {
                 profile.setSignerType(line.substring(line.indexOf("=") + 1).trim());
             } else if (line.matches("^region\\s*=.*")) {
                 profile.setRegion(line.substring(line.indexOf("=") + 1).trim());
-            } else if (line.matches("^quirks\\s*=.*")) {
-                String[] quirks = line.substring(line.indexOf("=") + 1).trim().split("\\s*,\\s*");
-                for(String quirk: quirks) {
-                    profile.addQuirk(MirrorProfileQuirks.valueOf(quirk));
+            } else if (line.matches("^options\\s*=.*")) {
+                String[] options = line.substring(line.indexOf("=") + 1).trim().split("\\s*,\\s*");
+                for(String option: options) {
+                    profile.addOption(MirrorProfileOptions.valueOf(option));
                 }
             } else if (line.matches("^\\s*#.*")) {
                 continue;

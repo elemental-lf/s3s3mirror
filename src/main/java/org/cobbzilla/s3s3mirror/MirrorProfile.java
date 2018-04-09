@@ -30,7 +30,7 @@ public class MirrorProfile implements AWSCredentials {
     @Getter private MirrorEncryption encryption = MirrorEncryption.NONE;
     @Getter private SecretKey encryptionKey = null;
 
-    @Getter private ArrayList<MirrorProfileQuirks> quirks = new ArrayList<MirrorProfileQuirks>();
+    @Getter private ArrayList<MirrorProfileOptions> quirks = new ArrayList<MirrorProfileOptions>();
 
     public void setEncryption(String encryptionName) {
         try {
@@ -87,11 +87,11 @@ public class MirrorProfile implements AWSCredentials {
         return valid;
     }
 
-    public void addQuirk(MirrorProfileQuirks quirk) {
+    public void addOption(MirrorProfileOptions quirk) {
         quirks.add(quirk);
     }
 
-    public boolean hasQuirk(MirrorProfileQuirks quirk) {
+    public boolean hasOption(MirrorProfileOptions quirk) {
         return quirks.contains(quirk);
     }
 

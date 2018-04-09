@@ -1,5 +1,5 @@
 package org.cobbzilla.s3s3mirror;
 
-public enum MirrorProfileQuirks {
+public enum MirrorProfileOptions {
     PATH_STYLE_ACCESS, NO_ENCODING_TYPE;
 }

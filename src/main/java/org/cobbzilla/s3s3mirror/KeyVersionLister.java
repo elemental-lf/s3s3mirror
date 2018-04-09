@@ -38,7 +38,7 @@ public class KeyVersionLister extends KeyLister {
                        .withBucketName(bucket)
                        .withPrefix(prefix)
                        .withMaxResults(fetchSize);
-        if (profile.hasQuirk(MirrorProfileQuirks.NO_ENCODING_TYPE))
+        if (profile.hasOption(MirrorProfileOptions.NO_ENCODING_TYPE))
             this.request.setEncodingType("none");
         listing = s3getFirstBatch();
         synchronized (summaries) {

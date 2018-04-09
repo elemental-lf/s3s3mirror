@@ -36,7 +36,7 @@ public class KeyObjectLister extends KeyLister {
         this.summaries = new ArrayList<S3ObjectSummary>(10*fetchSize);
 
         this.request = new ListObjectsRequest(bucket, prefix, null, null, fetchSize);
-        if (profile.hasQuirk(MirrorProfileQuirks.NO_ENCODING_TYPE))
+        if (profile.hasOption(MirrorProfileOptions.NO_ENCODING_TYPE))
             this.request.setEncodingType("none");
         listing = s3getFirstBatch();
         synchronized (summaries) {

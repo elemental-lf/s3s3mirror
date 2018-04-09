@@ -39,7 +39,7 @@ public class MirrorTest {
         String destinationBucket;
         int uploadPartSize;
 
-        List<String> testProfiles = Arrays.asList("standard");
+        List<String> testProfiles = Arrays.asList("from-google", "to-google");
         List<Integer> sizes = Arrays.asList(12 * 1024, 12 * 1024 * 1024);
 
         for(String testProfile: testProfiles) {
