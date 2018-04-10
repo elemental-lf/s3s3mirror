@@ -33,44 +33,53 @@ public class MirrorTest {
     public static Collection<Object[]> data() {
         ArrayList<Object[]> list = new ArrayList<Object[]>();
 
-        List<String> sourceProfiles;
-        List<String> destinationProfiles;
-        String sourceBucket;
-        String destinationBucket;
-        int uploadPartSize;
-
-        List<String> testProfiles = Arrays.asList("from-google", "to-google");
+        List<String> testProfiles = Arrays.asList("standard");
         List<Integer> sizes = Arrays.asList(12 * 1024, 12 * 1024 * 1024);
+        String googleSourceBucket = System.getenv("GOOGLE_FROM_BUCKET");
+        String googleDestinationBucket = System.getenv("GOOGLE_TO_BUCKET");
 
         for(String testProfile: testProfiles) {
+            List<String> sourceProfiles;
+            List<String> destinationProfiles;
+            List<String> sourceBuckets = new ArrayList<String>();
+            List<String> destinationBuckets = new ArrayList<String>();
+            List<Integer> uploadPartSizes = new ArrayList<Integer>();
+
             if (testProfile.equals("standard")) {
                 sourceProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C",
                         "MirrorTest-3");
                 destinationProfiles = Arrays.asList("MirrorTest-1", "MirrorTest-1-CSE_AES_GCM_256_STRICT", "MirrorTest-1-SSE_C",
                         "MirrorTest-2", "MirrorTest-2-CSE_AES_GCM_256_STRICT", "MirrorTest-2-SSE_C", "MirrorTest-3");
 
-                sourceBucket = "from-bucket";
-                destinationBucket = "to-bucket";
-                uploadPartSize = 5242880;
-            } else if (testProfile.equals("to-google")) {
-                sourceProfiles = Arrays.asList("MirrorTest-1");
-                destinationProfiles = Arrays.asList("Google");
-                sourceBucket = "from-bucket";
-                destinationBucket = "umg-de-alpha-s3s3mirror-test";
-                uploadPartSize = 0;
-            } else if (testProfile.equals("from-google")) {
-                sourceProfiles = Arrays.asList("Google");
-                destinationProfiles = Arrays.asList("MirrorTest-1");
-                sourceBucket = "umg-de-alpha-s3s3mirror-test";
-                destinationBucket = "to-bucket";
-                uploadPartSize = 0;
+
+                for (int i = 0; i < Math.max(sourceProfiles.size(), destinationProfiles.size()); i++) {
+                    sourceBuckets.add("from-bucket");
+                    destinationBuckets.add("to-bucket");
+                }
+
+                for (int i = 0; i < destinationProfiles.size(); i++) {
+                    uploadPartSizes.add(5242880);
+                }
+            } else if (testProfile.equals("google")) {
+                sourceProfiles = Arrays.asList("MirrorTest-1", "Google", "Google-CSE");
+                destinationProfiles = Arrays.asList("MirrorTest-1", "Google", "Google-CSE");
+
+                sourceBuckets = Arrays.asList("from-bucket", googleSourceBucket, googleSourceBucket);
+                destinationBuckets = Arrays.asList("to-bucket", googleDestinationBucket, googleDestinationBucket);
+                uploadPartSizes = Arrays.asList(5242880, 0, 0);
             } else {
                 throw new IllegalArgumentException("unknown test profile: " + testProfile);
             }
 
             for (int size : sizes) {
-                for (String sourceProfile : sourceProfiles) {
-                    for (String destinationProfile : destinationProfiles) {
+                for (int srcIdx = 0; srcIdx < sourceProfiles.size(); srcIdx++) {
+                    for (int dstIdx = 0; dstIdx < destinationProfiles.size(); dstIdx++) {
+                        String sourceProfile = sourceProfiles.get(srcIdx);
+                        String destinationProfile = destinationProfiles.get(dstIdx);
+                        String sourceBucket = sourceBuckets.get(srcIdx);
+                        String destinationBucket = destinationBuckets.get(dstIdx);
+                        int uploadPartSize = uploadPartSizes.get(dstIdx);
+
                         list.add(new Object[]{sourceProfile, sourceBucket,
                                 destinationProfile, destinationBucket, size, uploadPartSize});
                     }
