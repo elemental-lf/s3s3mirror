@@ -133,13 +133,22 @@ public class MirrorMain {
                         cryptoMode = CryptoMode.StrictAuthenticatedEncryption;
                 }
 
+                CryptoConfiguration cryptoConfiguration = new CryptoConfiguration()
+                                    .withCryptoMode(cryptoMode);
+
+                // See also: https://aws.amazon.com/blogs/developer/taming-client-side-key-rotation-with-the-amazon-s3-encryption-client/
+                if (profile.hasOption(MirrorProfileOptions.CSM_INSTRUCTION_FILE)) {
+                    cryptoConfiguration.setStorageMode(CryptoStorageMode.InstructionFile);
+                    cryptoConfiguration.setIgnoreMissingInstructionFile(false);
+                }
+
                 return AmazonS3EncryptionClientBuilder
                         .standard()
                         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), profile.getRegion()))
                         .withPathStyleAccessEnabled(profile.hasOption(MirrorProfileOptions.PATH_STYLE_ACCESS))
                         .withClientConfiguration(clientConfiguration)
                         .withCredentials(new AWSStaticCredentialsProvider(profile))
-                        .withCryptoConfiguration(new CryptoConfiguration(cryptoMode))
+                        .withCryptoConfiguration(cryptoConfiguration)
                         .withEncryptionMaterials(new StaticEncryptionMaterialsProvider(new EncryptionMaterials(profile.getEncryptionKey())))
                         .build();
             default:

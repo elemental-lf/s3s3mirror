@@ -141,10 +141,16 @@ public class MirrorMainTest {
     }
 
     @Test
-    public void testQuirks() throws Exception {
+    public void testProfileOptions() throws Exception {
         final MirrorMain main = new MirrorMain(ArrayUtils.addAll(STANDARD_ARGUMENTS, new String[]{SOURCE, DESTINATION}));
         main.parseArguments();
+
         assertTrue(main.getOptions().getSourceProfile().hasOption(MirrorProfileOptions.NO_ENCODING_TYPE));
         assertFalse(main.getOptions().getSourceProfile().hasOption(MirrorProfileOptions.PATH_STYLE_ACCESS));
+        assertTrue(main.getOptions().getSourceProfile().hasOption(MirrorProfileOptions.CSM_INSTRUCTION_FILE));
+
+        assertFalse(main.getOptions().getDestinationProfile().hasOption(MirrorProfileOptions.NO_ENCODING_TYPE));
+        assertTrue(main.getOptions().getDestinationProfile().hasOption(MirrorProfileOptions.PATH_STYLE_ACCESS));
+        assertFalse(main.getOptions().getDestinationProfile().hasOption(MirrorProfileOptions.CSM_INSTRUCTION_FILE));
     }
 }
