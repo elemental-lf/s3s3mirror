@@ -50,6 +50,20 @@ public class KeyDeleteJob extends KeyJob {
                         break;
 
                     } catch (AmazonS3Exception s3e) {
+                        // This is really ugly: The AWS Java SDK tries to delete a special key containing optional encryption
+                        // materials when deleting the corresponding key and CSE is used. At least with Google's server
+                        // implementation this leads to an exception which we try to detect here and then go on to ignore
+                        // this error.
+                        // 404 is NoSuchKey
+                        // "No such object: to-bucket/testDeleteRemoved_Jwp9wSm2zf_1523361645785-dest0.instruction"
+                        if (s3e.getStatusCode() == 404 &&
+                                s3e.getAdditionalDetails() != null &&
+                                s3e.getAdditionalDetails().containsKey("Details") &&
+                                s3e.getAdditionalDetails().get("Details").matches("^No such object: .*\\.instruction$")) {
+                            deletedOK = true;
+                            break;
+                        }
+
                         log.error("s3 exception deleting (try #"+tries+") "+key+": "+s3e);
 
                     } catch (Exception e) {
