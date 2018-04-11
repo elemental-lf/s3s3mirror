@@ -4,7 +4,6 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.AmazonS3EncryptionClientBuilder;
@@ -154,7 +153,7 @@ public class MirrorMain {
             default:
                 return AmazonS3ClientBuilder
                         .standard()
-                        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), Regions.US_EAST_1.name()))
+                        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), profile.getRegion()))
                         .withPathStyleAccessEnabled(profile.hasOption(MirrorProfileOptions.PATH_STYLE_ACCESS))
                         .withClientConfiguration(clientConfiguration)
                         .withCredentials(new AWSStaticCredentialsProvider(profile))
