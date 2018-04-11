@@ -68,7 +68,7 @@ public class MirrorProfile implements AWSCredentials {
 
     public boolean isValid() {
         // These must be set
-        boolean valid = name != null && aWSAccessKeyId != null && aWSSecretKey != null && endpoint != null;
+        boolean valid = name != null && aWSAccessKeyId != null && aWSSecretKey != null;
 
         switch (encryption) {
             case NONE:

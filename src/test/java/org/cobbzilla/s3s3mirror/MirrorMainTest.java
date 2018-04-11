@@ -153,4 +153,15 @@ public class MirrorMainTest {
         assertTrue(main.getOptions().getDestinationProfile().hasOption(MirrorProfileOptions.PATH_STYLE_ACCESS));
         assertFalse(main.getOptions().getDestinationProfile().hasOption(MirrorProfileOptions.CSM_INSTRUCTION_FILE));
     }
+
+    @Test
+    public void testOptionalEndpoint() throws Exception {
+        final MirrorMain main = new MirrorMain(ArrayUtils.addAll(STANDARD_ARGUMENTS, new String[]{SOURCE, DESTINATION}));
+        main.parseArguments();
+
+        assertTrue(main.getOptions().getSourceProfile().isValid());
+        assertTrue(main.getOptions().getDestinationProfile().isValid());
+        assertNull(main.getOptions().getSourceProfile().getEndpoint());
+        assertNotNull(main.getOptions().getDestinationProfile().getEndpoint());
+    }
 }

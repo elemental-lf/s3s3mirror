@@ -115,6 +115,12 @@ public class MirrorMain {
             clientConfiguration.setProxyPort(profile.getProxyPort());
         }
 
+        AwsClientBuilder.EndpointConfiguration endpointConfiguration = null;
+        if (profile.getEndpoint() != null) {
+            endpointConfiguration = new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), profile.getRegion());
+        }
+
+        AmazonS3 client;
         switch (profile.getEncryption()) {
             case CSE_AES_256:
             case CSE_AES_GCM_256:
@@ -141,24 +147,38 @@ public class MirrorMain {
                     cryptoConfiguration.setIgnoreMissingInstructionFile(false);
                 }
 
-                return AmazonS3EncryptionClientBuilder
+                AmazonS3EncryptionClientBuilder encryptionBuilder = AmazonS3EncryptionClientBuilder
                         .standard()
                         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), profile.getRegion()))
                         .withPathStyleAccessEnabled(profile.hasOption(MirrorProfileOptions.PATH_STYLE_ACCESS))
                         .withClientConfiguration(clientConfiguration)
                         .withCredentials(new AWSStaticCredentialsProvider(profile))
                         .withCryptoConfiguration(cryptoConfiguration)
-                        .withEncryptionMaterials(new StaticEncryptionMaterialsProvider(new EncryptionMaterials(profile.getEncryptionKey())))
-                        .build();
+                        .withEncryptionMaterials(new StaticEncryptionMaterialsProvider(new EncryptionMaterials(profile.getEncryptionKey())));
+
+                if (endpointConfiguration != null) {
+                    encryptionBuilder.setEndpointConfiguration(endpointConfiguration);
+                }
+
+                client = encryptionBuilder.build();
+                break;
             default:
-                return AmazonS3ClientBuilder
+                AmazonS3ClientBuilder builder = AmazonS3ClientBuilder
                         .standard()
                         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(profile.getEndpoint(), profile.getRegion()))
                         .withPathStyleAccessEnabled(profile.hasOption(MirrorProfileOptions.PATH_STYLE_ACCESS))
                         .withClientConfiguration(clientConfiguration)
-                        .withCredentials(new AWSStaticCredentialsProvider(profile))
-                        .build();
+                        .withCredentials(new AWSStaticCredentialsProvider(profile));
+
+                if (endpointConfiguration != null) {
+                    builder.setEndpointConfiguration(endpointConfiguration);
+                }
+
+                client = builder.build();
+                break;
         }
+
+        return client;
     }
 
     protected void parseArguments() throws Exception {
