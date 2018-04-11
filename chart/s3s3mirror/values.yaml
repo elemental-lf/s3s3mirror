@@ -1,7 +1,7 @@
 s3s3mirror:
   image:
     repository: elementalnet/s3s3mirror
-    tag: 0.6
+    tag: 0.7
     pullPolicy: IfNotPresent
 
   verbose: false
@@ -19,7 +19,9 @@ s3s3mirror:
     encryptionKey: "********"
     bucket: "source-bucket"
     # region: ... (optional)
-    # signerType: ... (optinal)
+    # signerType: ... (optional)
+    # Possible options are: NO_ENCODING_TYPE, PATH_STYLE_ACCESS, CSM_INSTRUCTION_FILE
+    # options: ... (comma-separated list, optional)
   destination:
     endpoint: "https://minio:1234"
     accessKey: "********"
@@ -29,3 +31,5 @@ s3s3mirror:
     bucket: "destination-bucket"
     # region: ... (optional)
     # signerType: ... (optional)
+    # Possible options are: NO_ENCODING_TYPE, PATH_STYLE_ACCESS, CSM_INSTRUCTION_FILE
+    # options: ... (comma-separated list, optional)

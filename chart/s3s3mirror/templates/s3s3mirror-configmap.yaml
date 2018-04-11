@@ -24,6 +24,9 @@ data:
 {{- if .Values.s3s3mirror.source.signerType }}
     signer_type = {{ .Values.s3s3mirror.source.signerType }}
 {{- end }}
+{{- if .Values.s3s3mirror.source.options }}
+    options = {{ .Values.s3s3mirror.source.options }}
+{{- end }}
     [destination]
     access_key = {{ .Values.s3s3mirror.destination.accessKey }}
     access_token_path = /s3cfg-secret/destinationSecretKey
@@ -37,4 +40,7 @@ data:
 {{- end }}
 {{- if .Values.s3s3mirror.destination.signerType }}
     signer_type = {{ .Values.s3s3mirror.destination.signerType }}
+{{- end }}
+{{- if .Values.s3s3mirror.destination.options }}
+    options = {{ .Values.s3s3mirror.destination.options }}
 {{- end }}
