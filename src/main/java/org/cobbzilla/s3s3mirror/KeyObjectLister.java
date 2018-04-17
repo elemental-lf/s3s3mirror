@@ -1,6 +1,7 @@
 package org.cobbzilla.s3s3mirror;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.internal.Constants;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
@@ -37,7 +38,7 @@ public class KeyObjectLister extends KeyLister {
 
         this.request = new ListObjectsRequest(bucket, prefix, null, null, fetchSize);
         if (profile.hasOption(MirrorProfileOptions.NO_ENCODING_TYPE))
-            this.request.setEncodingType("none");
+            this.request.setEncodingType(Constants.NO_ENCODING_TYPE);
         listing = s3getFirstBatch();
         synchronized (summaries) {
             final List<S3ObjectSummary> objectSummaries = listing.getObjectSummaries();

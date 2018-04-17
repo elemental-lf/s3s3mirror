@@ -277,4 +277,24 @@ public class MirrorTest {
         assertEquals(srcFile.data, object);
     }
 
+    @Test
+    public void testManyObjects() throws Exception {
+        final String key = "testManyObjects_"+random(10);
+        final String[] args = ArrayUtils.addAll(getStandardArgs(), new String[] {OPT_SOURCE_PREFIX, key, SOURCE, DESTINATION});
+        main = new MirrorMain(args);
+        main.init();
+        main.getOptions().setMaxSingleRequestUploadSize(MULTI_PART_UPLOAD_SIZE);
+
+        final int numFiles = 110;
+        final String[] keys = new String[numFiles];
+        final TestObject[] files = new TestObject[numFiles];
+        for (int i=0; i<numFiles; i++) {
+            keys[i] = key + "-src" + i;
+            files[i] = createTestObject(keys[i], Copy.SOURCE, Clean.SOURCE);
+        }
+
+        // Initiate copy
+        main.run();
+    }
+
 }
