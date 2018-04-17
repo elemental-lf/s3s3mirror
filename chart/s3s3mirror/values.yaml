@@ -1,7 +1,7 @@
 s3s3mirror:
   image:
     repository: elementalnet/s3s3mirror
-    tag: 0.7
+    tag: 0.8
     pullPolicy: IfNotPresent
 
   verbose: false
