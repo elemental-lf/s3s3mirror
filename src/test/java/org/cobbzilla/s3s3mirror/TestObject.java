@@ -23,7 +23,8 @@ class TestObject {
     public File file;
     public String data;
 
-    private static List<S3Asset> stuffToCleanup = new ArrayList<S3Asset>();
+    private static List<S3Asset> stuffToCleanup = new ArrayList<>();
+    private static List<File> filesToCleanup = new ArrayList<>();
 
     private static String random(int size) {
         return RandomStringUtils.randomAlphanumeric(size) + "_" + System.currentTimeMillis();
@@ -31,22 +32,32 @@ class TestObject {
 
     public TestObject(int fileSize) throws Exception {
         file = File.createTempFile(getClass().getName(), ".tmp");
-        data = random(fileSize + (RandomUtils.nextInt() % 1024));
+        data = random(fileSize);
         @Cleanup FileOutputStream out = new FileOutputStream(file);
         IOUtils.copy(new ByteArrayInputStream(data.getBytes()), out);
+        filesToCleanup.add(file);
         file.deleteOnExit();
     }
 
-    public static void cleanupS3Assets () {
+    public static void cleanup() {
         for (S3Asset asset : stuffToCleanup) {
             try {
-                log.info("cleanupS3Assets: deleting "+asset);
+                log.info("cleanup: deleting S3 object " + asset);
                 asset.getClient().deleteObject(asset.getBucket(), asset.getKey());
             } catch (Exception e) {
                 log.error("Error cleaning up object: "+asset+": "+e.getMessage());
             }
         }
         stuffToCleanup.clear();
+        for (File file : filesToCleanup) {
+            try {
+                log.info("cleanup: deleting file " + file.getName());
+                file.delete();
+            } catch (Exception e) {
+                log.error("Error cleaning up file: " + file.getName() + ": " + e.getMessage());
+            }
+        }
+        filesToCleanup.clear();
     }
 
     public static TestObject create(AmazonS3 sourceClient, SSECustomerKey sourceKey, String sourceBucket,
