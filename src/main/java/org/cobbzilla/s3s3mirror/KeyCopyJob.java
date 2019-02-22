@@ -143,6 +143,7 @@ public class KeyCopyJob extends KeyJob {
         final MirrorOptions options = context.getOptions();
         final String key = summary.getKey();
         final boolean verbose = options.isVerbose();
+        final boolean compareSize = options.isCompareSize();
 
         if (options.hasCtime()) {
             final Date lastModified = summary.getLastModified();
@@ -173,14 +174,32 @@ public class KeyCopyJob extends KeyJob {
             return false;
         }
 
-        final boolean objectChanged = objectChanged(destinationMetadata);
-        if (verbose && !objectChanged) log.info("Destination file is same as source, not copying: "+ key);
+        if (compareSize) {
+            final ObjectMetadata sourceMetadata;
+            try {
+                sourceMetadata = getSourceObjectMetadata(key);
+            } catch (AmazonS3Exception e) {
+                if (e.getStatusCode() == 404) {
+                    if (verbose) log.info("Key not found in source bucket anymore (not copying): " + key);
+                    return false;
+                } else {
+                    log.warn("Error getting metadata for " + options.getSourceBucket() + "/" + key + " (not copying): " + e);
+                    return false;
+                }
+            } catch (Exception e) {
+                log.warn("Error getting metadata for " + options.getSourceBucket() + "/" + key + " (not copying): " + e);
+                return false;
+            }
 
-        return objectChanged;
-    }
+            final boolean sizeChanged = getRealObjectSize(sourceMetadata) != getRealObjectSize(destinationMetadata);
 
-    boolean objectChanged(ObjectMetadata metadata) {
-        return summary.getSize() != getRealObjectSize(metadata);
+            if (sizeChanged) log.info("Object size changed (copying): " + key);
+
+            return sizeChanged;
+        } else {
+            if (verbose) log.info("Destination object already exists, not copying: "+ keydest);
+            return false;
+        }
     }
 
     boolean useCopy() {

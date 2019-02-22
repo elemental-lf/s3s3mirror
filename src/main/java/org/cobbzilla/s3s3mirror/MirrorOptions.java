@@ -131,6 +131,13 @@ public class MirrorOptions {
     @Option(name=LONGOPT_DISABLE_CERT_CHECK, usage=USAGE_DISABLE_CERT_CHECK)
     @Getter @Setter private boolean disableCertCheck = false;
 
+
+    public static final String USAGE_COMPARE_SIZE = "Compare sizes of objects to detect changes";
+    public static final String OPT_COMPARE_SIZE = "-S";
+    public static final String LONGOPT_COMPARE_SIZE = "--compare-size";
+    @Option(name=OPT_COMPARE_SIZE, aliases=LONGOPT_COMPARE_SIZE, usage=USAGE_COMPARE_SIZE)
+    @Getter @Setter private boolean compareSize = false;
+
     @Getter private long nowTime = System.currentTimeMillis();
 
     private long initMaxAge() {
