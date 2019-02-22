@@ -164,4 +164,11 @@ public class MirrorMainTest {
         assertNull(main.getOptions().getSourceProfile().getEndpoint());
         assertNotNull(main.getOptions().getDestinationProfile().getEndpoint());
     }
+
+    @Test
+    public void testCompareSize() throws Exception {
+        final MirrorMain main = new MirrorMain(ArrayUtils.addAll(STANDARD_ARGUMENTS, new String[]{OPT_COMPARE_SIZE, SOURCE, DESTINATION}));
+        main.parseArguments();
+        assertTrue(main.getOptions().isCompareSize());
+    }
 }

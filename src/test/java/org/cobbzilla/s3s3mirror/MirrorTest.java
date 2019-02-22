@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
 import org.apache.commons.lang3.RandomStringUtils;
+import org.apache.commons.lang3.RandomUtils;
 import org.junit.After;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -24,8 +25,7 @@ import java.util.List;
 import static org.cobbzilla.s3s3mirror.MirrorOptions.*;
 import static org.cobbzilla.s3s3mirror.TestObject.Clean;
 import static org.cobbzilla.s3s3mirror.TestObject.Copy;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.fail;
+import static org.junit.Assert.*;
 
 @Slf4j @RunWith(Parameterized.class)
 public class MirrorTest {
@@ -34,7 +34,7 @@ public class MirrorTest {
         ArrayList<Object[]> list = new ArrayList<Object[]>();
 
         List<String> testProfiles = Arrays.asList("standard");
-        List<Integer> sizes = Arrays.asList(12 * 1024, 12 * 1024 * 1024);
+        List<Integer> sizes = Arrays.asList(12 * 1024, 3 * 1024 * 1024);
         String googleSourceBucket = System.getenv("GOOGLE_FROM_BUCKET");
         String googleDestinationBucket = System.getenv("GOOGLE_TO_BUCKET");
 
@@ -58,7 +58,7 @@ public class MirrorTest {
                 }
 
                 for (int i = 0; i < destinationProfiles.size(); i++) {
-                    uploadPartSizes.add(5242880);
+                    uploadPartSizes.add(1000000);
                 }
             } else if (testProfile.equals("google")) {
                 sourceProfiles = Arrays.asList("MirrorTest-1", "Google", "Google-CSE");
@@ -66,7 +66,7 @@ public class MirrorTest {
 
                 sourceBuckets = Arrays.asList("from-bucket", googleSourceBucket, googleSourceBucket);
                 destinationBuckets = Arrays.asList("to-bucket", googleDestinationBucket, googleDestinationBucket);
-                uploadPartSizes = Arrays.asList(5242880, 0, 0);
+                uploadPartSizes = Arrays.asList(10000000, 0, 0);
             } else {
                 throw new IllegalArgumentException("unknown test profile: " + testProfile);
             }
@@ -95,7 +95,7 @@ public class MirrorTest {
     @Parameter(2) public String DESTINATION_PROFILE = null;
     @Parameter(3) public String DESTINATION = null;
     @Parameter(4) public int FILE_SIZE = 0;
-    @Parameter(5) public int MULTI_PART_UPLOAD_SIZE = 5242880;
+    @Parameter(5) public int MULTI_PART_UPLOAD_SIZE = 1000000;
 
     private String[] getStandardArgs() {
         String args[] = {LONGOPT_DISABLE_CERT_CHECK, OPT_VERBOSE,
@@ -108,9 +108,9 @@ public class MirrorTest {
     // Every individual test *must* initialize the "main" instance variable, otherwise NPE gets thrown here.
     private MirrorMain main = null;
 
-    private TestObject createTestObject(String key, Copy copy, Clean clean) throws Exception {
+    private TestObject createTestObject(String key, Copy copy, Clean clean, int size) throws Exception {
         return TestObject.create(main.getSourceClient(), main.getContext().getSourceSSEKey(), SOURCE,
-                main.getDestinationClient(), main.getContext().getDestinationSSEKey(), DESTINATION, key, FILE_SIZE, copy, clean);
+                main.getDestinationClient(), main.getContext().getDestinationSSEKey(), DESTINATION, key, size, copy, clean);
     }
 
     private static String random(int size) {
@@ -134,7 +134,7 @@ public class MirrorTest {
 
     @After
     public void cleanup () {
-        TestObject.cleanupS3Assets();
+        TestObject.cleanup();
         main = null;
     }
 
@@ -160,7 +160,7 @@ public class MirrorTest {
         main.init();
         main.getOptions().setMaxSingleRequestUploadSize(MULTI_PART_UPLOAD_SIZE);
 
-        final TestObject testFile = createTestObject(key, Copy.SOURCE, Clean.SOURCE_AND_DESTINATION);
+        final TestObject testFile = createTestObject(key, Copy.SOURCE, Clean.SOURCE_AND_DESTINATION, FILE_SIZE + RandomUtils.nextInt() % 1024);
         log.info("testFile.data.length() " + testFile.data.length());
 
         main.run();
@@ -201,7 +201,7 @@ public class MirrorTest {
         main.init();
         main.getOptions().setMaxSingleRequestUploadSize(MULTI_PART_UPLOAD_SIZE);
 
-        final TestObject testFile = createTestObject(key, Copy.SOURCE, Clean.SOURCE_AND_DESTINATION);
+        final TestObject testFile = createTestObject(key, Copy.SOURCE, Clean.SOURCE_AND_DESTINATION, FILE_SIZE + RandomUtils.nextInt() % 1024);
 
         main.run();
 
@@ -235,12 +235,12 @@ public class MirrorTest {
         final TestObject[] destFiles = new TestObject[numDestFiles];
         for (int i=0; i<numDestFiles; i++) {
             destKeys[i] = key + "-dest" + i;
-            destFiles[i] = createTestObject(destKeys[i], Copy.DESTINATION, Clean.DESTINATION);
+            destFiles[i] = createTestObject(destKeys[i], Copy.DESTINATION, Clean.DESTINATION, FILE_SIZE + RandomUtils.nextInt() % 1024);
         }
 
         // Write 1 file to source
         final String srcKey = key + "-src";
-        final TestObject srcFile = createTestObject(srcKey, Copy.SOURCE, Clean.SOURCE_AND_DESTINATION);
+        final TestObject srcFile = createTestObject(srcKey, Copy.SOURCE, Clean.SOURCE_AND_DESTINATION, FILE_SIZE + RandomUtils.nextInt() % 1024);
 
         // Initiate copy
         main.run();
@@ -290,11 +290,59 @@ public class MirrorTest {
         final TestObject[] files = new TestObject[numFiles];
         for (int i=0; i<numFiles; i++) {
             keys[i] = key + "-src" + i;
-            files[i] = createTestObject(keys[i], Copy.SOURCE, Clean.SOURCE);
+            files[i] = createTestObject(keys[i], Copy.SOURCE, Clean.SOURCE, FILE_SIZE + RandomUtils.nextInt() % 1024);
         }
 
         // Initiate copy
         main.run();
+    }
+
+    @Test
+    public void testCompareSize() throws Exception {
+        final String key = "testCompareSize_"+random(10);
+        final String[] args = ArrayUtils.addAll(getStandardArgs(), new String[] {OPT_SOURCE_PREFIX, key, OPT_COMPARE_SIZE, SOURCE, DESTINATION});
+        main = new MirrorMain(args);
+        main.init();
+        main.getOptions().setMaxSingleRequestUploadSize(MULTI_PART_UPLOAD_SIZE);
+
+        assertTrue(main.getOptions().isCompareSize());
+
+        final int numFiles = 60;
+        final int sizeUnchangedThreshold = 30;
+        final String[] keys = new String[numFiles];
+        final TestObject[] sourceFiles = new TestObject[numFiles];
+        for (int i=0; i<numFiles; i++) {
+            keys[i] = key + "-src" + i;
+            sourceFiles[i] = createTestObject(keys[i], Copy.SOURCE, Clean.SOURCE, FILE_SIZE);
+        }
+        final TestObject[] destinationFiles = new TestObject[numFiles];
+        for (int i=0; i<numFiles; i++) {
+            destinationFiles[i] = createTestObject(keys[i], Copy.DESTINATION, Clean.DESTINATION, FILE_SIZE + ((i >= sizeUnchangedThreshold)? 0 : 42));
+        }
+
+        // Initiate copy
+        main.run();
+
+        assertEquals(numFiles - sizeUnchangedThreshold, main.getContext().getStats().objectsCopied.get());
+
+        for (int i=0; i < sizeUnchangedThreshold; i++) {
+            ObjectMetadata metadata;
+            metadata = getMetadata(main.getDestinationClient(), main.getContext().getDestinationSSEKey(), DESTINATION, keys[i]);
+            assertEquals(sourceFiles[i].data.length(), KeyJob.getRealObjectSize(metadata));
+
+            String object;
+            object = getObjectAsString(main.getDestinationClient(), main.getContext().getDestinationSSEKey(), DESTINATION, keys[i]);
+            assertEquals(sourceFiles[i].data, object);
+        }
+        for (int i=0; i >= sizeUnchangedThreshold; i++) {
+            ObjectMetadata metadata;
+            metadata = getMetadata(main.getDestinationClient(), main.getContext().getDestinationSSEKey(), DESTINATION, keys[i]);
+            assertEquals(destinationFiles[i].data.length(), KeyJob.getRealObjectSize(metadata));
+
+            String object;
+            object = getObjectAsString(main.getDestinationClient(), main.getContext().getDestinationSSEKey(), DESTINATION, keys[i]);
+            assertEquals(destinationFiles[i].data, object);
+        }
     }
 
 }
