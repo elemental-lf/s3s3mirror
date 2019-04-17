@@ -10,6 +10,7 @@ import org.apache.commons.collections4.MapUtils;
 import org.slf4j.Logger;
 
 import java.io.ByteArrayOutputStream;
+import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -197,6 +198,20 @@ public abstract class KeyJob implements Runnable {
         }
 
         return (length != null) ? Long.parseLong(length) : metadata.getContentLength();
+    }
+
+    protected static void closeS3ObjectInputStream(S3ObjectInputStream objectStream) {
+        try {
+            // See https://github.com/aws/aws-sdk-java/issues/1211
+            // Explicitly drain the stream
+            while (objectStream.read() >= 0) {
+                // Do nothing
+            }
+
+            objectStream.close();
+        } catch (IOException e) {
+            objectStream.abort();
+        }
     }
 
     protected void setupSSEEncryption(GetObjectRequest request, SSECustomerKey key) {
