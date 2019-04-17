@@ -9,7 +9,7 @@ import org.kohsuke.args4j.Option;
 
 import java.util.Date;
 
-import static org.cobbzilla.s3s3mirror.MirrorConstants.GB;
+import static org.cobbzilla.s3s3mirror.MirrorConstants.MB;
 
 @Slf4j
 public class MirrorOptions {
@@ -64,23 +64,23 @@ public class MirrorOptions {
     public boolean hasDestinationPrefix() { return destinationPrefix != null && destinationPrefix.length() > 0; }
     public int getDestinationPrefixLength() { return destinationPrefix == null ? 0 : destinationPrefix.length(); }
 
-    public static final String USAGE_MAX_CONNECTIONS = "Maximum number of connections to S3 (default 100)";
+    public static final String USAGE_MAX_CONNECTIONS = "Maximum number of connections to S3 (default 15)";
     public static final String OPT_MAX_CONNECTIONS = "-m";
     public static final String LONGOPT_MAX_CONNECTIONS = "--max-connections";
     @Option(name=OPT_MAX_CONNECTIONS, aliases=LONGOPT_MAX_CONNECTIONS, usage=USAGE_MAX_CONNECTIONS)
-    @Getter @Setter private int maxConnections = 100;
+    @Getter @Setter private int maxConnections = 15;
 
-    public static final String USAGE_MAX_THREADS = "Maximum number of threads (default 100)";
+    public static final String USAGE_MAX_THREADS = "Maximum number of threads (default 10)";
     public static final String OPT_MAX_THREADS = "-t";
     public static final String LONGOPT_MAX_THREADS = "--max-threads";
     @Option(name=OPT_MAX_THREADS, aliases=LONGOPT_MAX_THREADS, usage=USAGE_MAX_THREADS)
-    @Getter @Setter private int maxThreads = 100;
+    @Getter @Setter private int maxThreads = 10;
 
-    public static final String USAGE_MAX_RETRIES = "Maximum number of retries for S3 requests (default 5)";
+    public static final String USAGE_MAX_RETRIES = "Maximum number of retries for S3 requests (default 3)";
     public static final String OPT_MAX_RETRIES = "-r";
     public static final String LONGOPT_MAX_RETRIES = "--max-retries";
     @Option(name=OPT_MAX_RETRIES, aliases=LONGOPT_MAX_RETRIES, usage=USAGE_MAX_RETRIES)
-    @Getter @Setter private int maxRetries = 5;
+    @Getter @Setter private int maxRetries = 3;
 
     public static final String USAGE_CTIME = "Only copy objects whose Last-Modified date is younger than this many days. " +
             "For other time units, use these suffixes: y (years), M (months), d (days), w (weeks), h (hours), m (minutes), s (seconds)";
@@ -107,12 +107,12 @@ public class MirrorOptions {
     private static final String MAX_SINGLE_REQUEST_UPLOAD_SIZE_USAGE = "The maximum size (in bytes) uploaded via a single request (0 means unlimited)";
     public static final String LONGOPT_MAX_SINGLE_REQUEST_UPLOAD_SIZE = "--max-single-upload-size";
     @Option(name=LONGOPT_MAX_SINGLE_REQUEST_UPLOAD_SIZE, usage=MAX_SINGLE_REQUEST_UPLOAD_SIZE_USAGE)
-    @Getter @Setter private long maxSingleRequestUploadSize = 5 * GB;
+    @Getter @Setter private long maxSingleRequestUploadSize = 64 * MB;
 
     private static final String MULTI_PART_UPLOAD_SIZE_USAGE = "The upload size (in bytes) of each part uploaded as part of a multipart request";
     public static final String LONGOPT_MULTI_PART_UPLOAD_SIZE = "--upload-part-size";
     @Option(name=LONGOPT_MULTI_PART_UPLOAD_SIZE, usage=MULTI_PART_UPLOAD_SIZE_USAGE)
-    @Getter @Setter private long uploadPartSize = 4 * GB;
+    @Getter @Setter private long uploadPartSize = 64 * MB;
 
     private static final String CROSS_ACCOUNT_USAGE ="Copy across AWS accounts. Only Resource-based policies are supported (as " +
             "specified by AWS documentation) for cross account copying. " +
