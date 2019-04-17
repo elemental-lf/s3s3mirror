@@ -58,7 +58,7 @@ public class MirrorTest {
                 }
 
                 for (int i = 0; i < destinationProfiles.size(); i++) {
-                    uploadPartSizes.add(1000000);
+                    uploadPartSizes.add(5 * 1024 * 1024);
                 }
             } else if (testProfile.equals("google")) {
                 sourceProfiles = Arrays.asList("MirrorTest-1", "Google", "Google-CSE");
