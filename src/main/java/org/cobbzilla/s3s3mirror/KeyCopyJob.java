@@ -1,11 +1,10 @@
 package org.cobbzilla.s3s3mirror;
 
+import com.amazonaws.ResetException;
 import com.amazonaws.services.s3.model.*;
-import lombok.Cleanup;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 
-import java.io.InputStream;
 import java.util.Date;
 
 /**
@@ -72,9 +71,11 @@ public class KeyCopyJob extends KeyJob {
 		final ObjectMetadata destinationMetadata = buildDestinationMetadata(sourceMetadata);
         if (verbose) logMetadata("destination ", destinationMetadata);
 
-        for (int tries = 0; tries < maxRetries; tries++) {
-            if (verbose) log.info("copying (try #" + tries + "): " + key + " to: " + keydest);
-            
+        boolean copyOkay = false;
+        for (int tries = 1; tries <= maxRetries; tries++) {
+
+
+            S3ObjectInputStream objectStream = null;
             try {
             	if (useCopy()) {
                     if (verbose) log.info("Copying to {} (try #{}).", keydest, tries);
@@ -88,21 +89,16 @@ public class KeyCopyJob extends KeyJob {
                     if (options.isCrossAccountCopy()) {
                         copyRequest.setCannedAccessControlList(CannedAccessControlList.BucketOwnerFullControl);
                     } else {
-                        AccessControlList objectAcl;
-
-                        try {
-                            objectAcl = getSourceAccessControlList(key);
-                        } catch (Exception e) {
-                            log.error("error getting ACL for key: " + key + ": " + e);
-                            return false;
-                        }
-
+                        final AccessControlList objectAcl = getSourceAccessControlList(key);
                         copyRequest.setAccessControlList(objectAcl);
                     }
                     
                     stats.s3copyCount.incrementAndGet();
                     context.getSourceClient().copyObject(copyRequest);
-            	} else {        		
+
+                    if (verbose) log.info("Completed copying to {}.", keydest);
+            	} else {
+                    if (verbose) log.info("Uploading to {} (try #{}).", keydest, tries);
 
             		final GetObjectRequest getRequest =  new GetObjectRequest(options.getSourceBucket(), key);
 
@@ -110,7 +106,7 @@ public class KeyCopyJob extends KeyJob {
 
                     stats.s3getCount.incrementAndGet();
             		S3Object object = context.getSourceClient().getObject(getRequest);
-                    @Cleanup InputStream objectStream = object.getObjectContent();
+                    objectStream = object.getObjectContent();
 
             		final PutObjectRequest putRequest = new PutObjectRequest(options.getDestinationBucket(), keydest, objectStream, destinationMetadata)
             												.withCannedAcl(CannedAccessControlList.BucketOwnerFullControl)
@@ -120,25 +116,38 @@ public class KeyCopyJob extends KeyJob {
 
             		stats.s3putCount.incrementAndGet();
                     context.getDestinationClient().putObject(putRequest);
+                    // Stream is closed when we reached EOF
+                    objectStream = null;
+
+                    if (verbose) log.info("Completed uploading to {}.", keydest);
             	}
 
             	stats.bytesCopied.addAndGet(getRealObjectSize(sourceMetadata));
-                if (verbose) log.info("successfully copied (on try #" + tries + "): " + key + " to " + keydest);
+
                 
-                return true;               	
-            } catch (AmazonS3Exception s3e) {
-                log.error("s3 exception copying (try #" + tries + ") " + key + " to " + keydest + ": " + s3e);
+                copyOkay = true;
+                break;
+            } catch (ResetException e) {
+                // ResetException can occur when there is a transient, retryable failure.
+                if (verbose) log.info("Reset exception copying to {} (try#{}).", keydest, tries, e);
+            } catch (AmazonS3Exception e) {
+                log.error("S3 exception copying to {} (try#{}).", keydest, tries, e);
             } catch (Exception e) {
-                log.error("unexpected exception copying (try #" + tries + ") " + key + " to " + keydest + ": " + e);
+                log.error("Unexpected exception uploading to {} (try#{}).", keydest, tries, e);
+            } finally {
+                if (objectStream != null) {
+                    this.closeS3ObjectInputStream(objectStream);
+                }
             }
-            try {
-                Thread.sleep(10);
-            } catch (InterruptedException e) {
-                log.error("interrupted while waiting to retry key: " + key);
-                return false;
-            }
+
+            if (Sleep.sleep(50)) break;
         }
-        return false;
+
+        if (!copyOkay) {
+            log.error("Giving up on copying to {}.", keydest);
+        }
+
+        return copyOkay;
     }
 
     private boolean shouldTransfer() {
