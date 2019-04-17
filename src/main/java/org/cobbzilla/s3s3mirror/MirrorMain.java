@@ -208,7 +208,15 @@ public class MirrorMain {
         if (!options.getDestinationProfile().isValid()) {
         	throw new IllegalStateException("Could not find destination credentials");
         }
-        
+
+        // If there are more threads than connections, then some threads won't be able to get a connection
+        // from the pool.
+        if (options.getMaxThreads() > options.getMaxConnections()) {
+            log.warn("The maximum number of connections should be greater than the maximum number of threads. " +
+                            "Adjusting maximum connections to match the number of threads.");
+            options.setMaxConnections(options.getMaxThreads());
+        }
+
         options.initDerivedFields();
     }
 
