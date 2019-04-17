@@ -37,32 +37,42 @@ public abstract class KeyJob implements Runnable {
 
     private ObjectMetadata getObjectMetadata(AmazonS3 client, SSECustomerKey sseKey, String bucket, String key) throws Exception {
         MirrorOptions options = context.getOptions();
-        Exception ex = null;
-        for (int tries=0; tries < options.getMaxRetries(); tries++) {
+        boolean verbose = options.isVerbose();
+
+        AmazonS3Exception lastException = null;
+        ObjectMetadata metadata = null;
+        for (int tries = 1; tries <= options.getMaxRetries(); tries++) {
             try {
                 GetObjectMetadataRequest getRequest = new GetObjectMetadataRequest(bucket, key);
 
                 setupSSEEncryption(getRequest, sseKey);
 
                 context.getStats().s3getCount.incrementAndGet();
-                return client.getObjectMetadata(getRequest);
+                metadata = client.getObjectMetadata(getRequest);
+                break;
 
             } catch (AmazonS3Exception e) {
-                if (e.getStatusCode() == 404) throw e;
-
-            } catch (Exception e) {
-                ex = e;
-                if (options.isVerbose()) {
-                    if (tries >= options.getMaxRetries()) {
-                        getLog().error("getObjectMetadata(" + key + ") failed (try #" + tries + "), giving up");
-                        break;
-                    } else {
-                        getLog().warn("getObjectMetadata("+key+") failed (try #"+tries+"), retrying...");
-                    }
+                lastException = e;
+                if (e.getStatusCode() == 404) {
+                    // Key not found
+                    break;
+                } else {
+                    // Ignore and try again
+                    if (verbose) log.warn("GetObjectMetadataRequest for {} failed (try #{}).", key, tries, e);
                 }
             }
+
+            if (Sleep.sleep(10)) break;
         }
-        throw ex;
+
+        if (metadata != null) {
+            return metadata;
+        } else if (lastException.getStatusCode() == 404) {
+            throw lastException;
+        } else {
+            log.error("getObjectMetadata for {} failed after {} tries, giving up.", key, options.getMaxRetries(), lastException);
+            throw lastException;
+        }
     }
 
     protected ObjectMetadata getSourceObjectMetadata(String key) throws Exception {
@@ -77,38 +87,35 @@ public abstract class KeyJob implements Runnable {
 
     private AccessControlList getAccessControlList(AmazonS3 client, SSECustomerKey sseKey, String bucket, String key) throws Exception {
         MirrorOptions options = context.getOptions();
-        Exception ex = null;
+        boolean verbose = options.isVerbose();
 
-        for (int tries=0; tries<=options.getMaxRetries(); tries++) {
+        AccessControlList acl = null;
+        for (int tries = 1; tries <= options.getMaxRetries(); tries++) {
             try {
                 GetObjectAclRequest getObject = new GetObjectAclRequest(bucket, key);
 
                 context.getStats().s3getCount.incrementAndGet();
-                return client.getObjectAcl(getObject);
-
-            } catch (Exception e) {
-                ex = e;
-
-                if (tries >= options.getMaxRetries()) {
-                    // Annoyingly there can be two reasons for this to fail. It will fail if the IAM account
-                    // permissions are wrong, but it will also fail if we are copying an item that we don't
-                    // own ourselves. This may seem unusual, but it occurs when copying AWS Detailed Billing
-                    // objects since although they live in your bucket, the object owner is AWS.
-                    getLog().warn("Unable to obtain object ACL, copying item without ACL data.");
-                    return new AccessControlList();
-                }
-
-                if (options.isVerbose()) {
-                   if (tries >= options.getMaxRetries()) {
-                        getLog().warn("getObjectAcl(" + key + ") failed (try #" + tries + "), giving up.");
-			break;
-                    } else {
-                        getLog().warn("getObjectAcl("+key+") failed (try #"+tries+"), retrying...");
-                    }
-                }
+                acl = client.getObjectAcl(getObject);
+                break;
+            } catch (AmazonS3Exception se3) {
+                // Ignore and try again
+                if (verbose) log.warn("GetObjectAclRequest for {} failed (try #{})", key, tries);
             }
+
+            if (Sleep.sleep(10)) break;
         }
-        throw ex;
+
+        if (acl != null) {
+            return acl;
+        } else {
+            // Annoyingly there can be two reasons for this to fail. It will fail if the IAM account
+            // permissions are wrong, but it will also fail if we are copying an item that we don't
+            // own ourselves. This may seem unusual, but it occurs when copying AWS Detailed Billing
+            // objects since although they live in your bucket, the object owner is AWS.
+            log.warn("Unable to obtain object ACL for {}, copying object without ACL data.", key);
+            return new AccessControlList();
+        }
+
     }
 
     protected AccessControlList getSourceAccessControlList(String key) throws Exception {
