@@ -65,7 +65,7 @@ public class KeyCopyJob extends KeyJob {
         try {
             sourceMetadata = getSourceObjectMetadata(key);
         } catch (Exception e) {
-            log.error("error getting metadata for key: " + key + ": " + e);
+            log.error("Error getting metadata for key {}.", key, e);
             return false;
         }
         if (verbose) logMetadata("source", sourceMetadata);
@@ -77,6 +77,8 @@ public class KeyCopyJob extends KeyJob {
             
             try {
             	if (useCopy()) {
+                    if (verbose) log.info("Copying to {} (try #{}).", keydest, tries);
+
             		final CopyObjectRequest copyRequest = new CopyObjectRequest(options.getSourceBucket(), key, options.getDestinationBucket(), keydest)
             											  .withStorageClass(StorageClass.valueOf(options.getStorageClass()))
             											  .withNewObjectMetadata(destinationMetadata);
@@ -148,11 +150,12 @@ public class KeyCopyJob extends KeyJob {
         if (options.hasCtime()) {
             final Date lastModified = summary.getLastModified();
             if (lastModified == null) {
-                if (verbose) log.info("No Last-Modified header for key: " + key);
+                if (verbose) log.info("No Last-Modified header for key {}/{}.", options.getSourceBucket(), key);
 
             } else {
                 if (lastModified.getTime() < options.getMaxAge()) {
-                    if (verbose) log.info("key "+key+" (lastmod="+lastModified+") is older than "+options.getCtime()+" (cutoff="+options.getMaxAgeDate()+"), not copying");
+                    if (verbose) log.info("Key {} (last modified {}) is older than {} (cutoff {}), not copying.", key,
+                            lastModified, options.getCtime(), options.getMaxAgeDate());
                     return false;
                 }
             }
@@ -180,24 +183,26 @@ public class KeyCopyJob extends KeyJob {
                 sourceMetadata = getSourceObjectMetadata(key);
             } catch (AmazonS3Exception e) {
                 if (e.getStatusCode() == 404) {
-                    if (verbose) log.info("Key not found in source bucket anymore (not copying): " + key);
+                    if (verbose) log.info("Key {}/{} not found in source bucket anymore (not copying).",
+                            options.getSourceBucket(), key);
                     return false;
                 } else {
-                    log.warn("Error getting metadata for " + options.getSourceBucket() + "/" + key + " (not copying): " + e);
+                    log.warn("Error getting metadata for {}/{} (not copying).", options.getSourceBucket(), key, e);
                     return false;
                 }
             } catch (Exception e) {
-                log.warn("Error getting metadata for " + options.getSourceBucket() + "/" + key + " (not copying): " + e);
+                log.warn("Error getting metadata for {}/{} (not copying).", options.getSourceBucket(), key, e);
                 return false;
             }
 
             final boolean sizeChanged = getRealObjectSize(sourceMetadata) != getRealObjectSize(destinationMetadata);
 
-            if (sizeChanged) log.info("Object size changed (copying): " + key);
+            if (sizeChanged) log.info("Object size changed for {}/{} (copying).", options.getSourceBucket(), key);
 
             return sizeChanged;
         } else {
-            if (verbose) log.info("Destination object already exists, not copying: "+ keydest);
+            if (verbose) log.info("Destination object {}/{} already exists, not copying.",
+                    options.getDestinationBucket(), keydest);
             return false;
         }
     }
