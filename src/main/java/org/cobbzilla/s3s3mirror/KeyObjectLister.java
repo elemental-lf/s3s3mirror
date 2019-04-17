@@ -44,7 +44,7 @@ public class KeyObjectLister extends KeyLister {
             final List<S3ObjectSummary> objectSummaries = listing.getObjectSummaries();
             summaries.addAll(objectSummaries);
             context.getStats().objectsRead.addAndGet(objectSummaries.size());
-            if (options.isVerbose()) log.info("added initial set of "+objectSummaries.size()+" keys");
+            if (options.isVerbose()) log.info("Added initial set of {} keys.", objectSummaries.size());
         }
     }
 
@@ -68,17 +68,17 @@ public class KeyObjectLister extends KeyLister {
                         }
 
                     } else {
-                        log.info("No more keys found in source bucket, exiting");
+                        log.info("No more keys found in source bucket, exiting.");
                         return;
                     }
                 }
                 if (Sleep.sleep(50)) return;
             }
         } catch (Exception e) {
-            log.error("Error in run loop, KeyLister thread now exiting: "+e);
+            log.error("Error in run loop, KeyLister thread now exiting.", e);
 
         } finally {
-            if (verbose) log.info("KeyLister run loop finished");
+            if (verbose) log.info("KeyLister run loop finished.");
             done.set(true);
         }
     }
@@ -90,23 +90,20 @@ public class KeyObjectLister extends KeyLister {
         final int maxRetries = options.getMaxRetries();
 
         Exception lastException = null;
-        for (int tries=0; tries<maxRetries; tries++) {
+        for (int tries = 1; tries <= maxRetries; tries++) {
             try {
                 context.getStats().s3getCount.incrementAndGet();
                 ObjectListing listing = client.listObjects(request);
-                if (verbose) log.info("successfully got first batch of objects (on try #"+tries+")");
+                if (verbose) log.info("Successfully got first batch of objects (on try #{}).", tries);
                 return listing;
 
             } catch (Exception e) {
                 lastException = e;
-                log.warn("s3getFirstBatch: error listing (try #"+tries+"): "+e);
-                if (Sleep.sleep(50)) {
-                    log.info("s3getFirstBatch: interrupted while waiting for next try");
-                    break;
-                }
+                log.warn("s3getFirstBatch: Error listing (try #{}).", tries, e);
+                if (Sleep.sleep(50)) break;
             }
         }
-        throw new IllegalStateException("s3getFirstBatch: error listing: "+lastException, lastException);
+        throw new IllegalStateException("s3getFirstBatch failed even after " + maxRetries + ": " + lastException + ".");
     }
 
     private ObjectListing s3getNextBatch() {
@@ -114,25 +111,22 @@ public class KeyObjectLister extends KeyLister {
         final boolean verbose = options.isVerbose();
         final int maxRetries = options.getMaxRetries();
 
-        for (int tries=0; tries<maxRetries; tries++) {
+        for (int tries = 1; tries <= maxRetries; tries++) {
             try {
                 context.getStats().s3getCount.incrementAndGet();
                 ObjectListing next = client.listNextBatchOfObjects(listing);
-                if (verbose) log.info("successfully got next batch of objects (on try #"+tries+")");
+                if (verbose) log.info("Successfully got next batch of objects (on try #{}).", tries);
                 return next;
 
             } catch (AmazonS3Exception s3e) {
-                log.error("s3 exception listing objects (try #"+tries+"): "+s3e);
+                log.error("S3 exception listing objects (try #{}).", tries, s3e);
 
             } catch (Exception e) {
-                log.error("unexpected exception listing objects (try #"+tries+"): "+e);
+                log.error("Unexpected exception listing objects (try #{}).", tries, e);
             }
-            if (Sleep.sleep(50)) {
-                log.info("s3getNextBatch: interrupted while waiting for next try");
-                break;
-            }
+            if (Sleep.sleep(50)) break;
         }
-        throw new IllegalStateException("Too many errors trying to list objects (maxRetries="+maxRetries+")");
+        throw new IllegalStateException("Too many errors trying to list objects (maxRetries="+maxRetries+").");
     }
 
     @Override
