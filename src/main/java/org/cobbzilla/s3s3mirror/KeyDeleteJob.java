@@ -69,12 +69,8 @@ public class KeyDeleteJob extends KeyJob {
                     } catch (Exception e) {
                         log.error("unexpected exception deleting (try #"+tries+") "+key+": "+e);
                     }
-                    try {
-                        Thread.sleep(10);
-                    } catch (InterruptedException e) {
-                        log.error("interrupted while waiting to retry key: "+key);
-                        break;
-                    }
+
+                    if (Sleep.sleep(10)) break;
                 }
                 if (deletedOK) {
                     context.getStats().objectsDeleted.incrementAndGet();

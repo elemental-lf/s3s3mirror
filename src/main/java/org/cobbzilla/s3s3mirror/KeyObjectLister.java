@@ -72,12 +72,7 @@ public class KeyObjectLister extends KeyLister {
                         return;
                     }
                 }
-                try {
-                    Thread.sleep(50);
-                } catch (InterruptedException e) {
-                    log.error("interrupted!");
-                    return;
-                }
+                if (Sleep.sleep(50)) return;
             }
         } catch (Exception e) {
             log.error("Error in run loop, KeyLister thread now exiting: "+e);

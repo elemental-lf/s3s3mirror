@@ -9,7 +9,7 @@ public class Sleep {
         try {
             Thread.sleep(millis);
         } catch (InterruptedException e) {
-            log.error("interrupted!");
+            log.error("Sleeping for {} milliseconds was interrupted.", millis);
             return true;
         }
         return false;

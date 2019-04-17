@@ -107,16 +107,11 @@ public abstract class KeyMaster implements Runnable {
             while (true) {
                 for (KeyObjectSummary summary : summaries) {
                     while (workQueue.size() >= maxQueueCapacity) {
-                        try {
-                            synchronized (notifyLock) {
-                                notifyLock.wait(50);
-                            }
-                            Thread.sleep(50);
-
-                        } catch (InterruptedException e) {
-                            log.error("interrupted!");
-                            return;
+                        synchronized (notifyLock) {
+                            notifyLock.wait(50);
                         }
+
+                        if (Sleep.sleep(50)) return;
                     }
                     executorService.submit(getTask(summary));
                     counter++;
