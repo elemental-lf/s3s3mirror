@@ -34,7 +34,7 @@ public class MirrorTest {
         ArrayList<Object[]> list = new ArrayList<Object[]>();
 
         List<String> testProfiles = Arrays.asList("standard");
-        List<Integer> sizes = Arrays.asList(12 * 1024, 3 * 1024 * 1024);
+        List<Integer> sizes = Arrays.asList(12 * 1024, 7 * 1024 * 1024);
         String googleSourceBucket = System.getenv("GOOGLE_FROM_BUCKET");
         String googleDestinationBucket = System.getenv("GOOGLE_TO_BUCKET");
 
