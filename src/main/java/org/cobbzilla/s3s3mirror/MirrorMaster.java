@@ -31,7 +31,7 @@ public class MirrorMaster {
         final RejectedExecutionHandler rejectedExecutionHandler = new RejectedExecutionHandler() {
             @Override
             public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
-                log.error("Error submitting job: "+r+", possible queue overflow");
+                log.error("Error submitting job {}, possible queue overflow.", r);
             }
         };
 
@@ -57,12 +57,19 @@ public class MirrorMaster {
             }
 
         } catch (Exception e) {
-            log.error("Unexpected exception in mirror: "+e, e);
-
+            log.error("Unexpected exception in mirror.", e);
         } finally {
-            try { copyMaster.stop();   } catch (Exception e) { log.error("Error stopping copyMaster: "+e, e); }
+            try {
+                copyMaster.stop();
+            } catch (Exception e) {
+                log.error("Error stopping copyMaster.", e);
+            }
             if (deleteMaster != null) {
-                try { deleteMaster.stop(); } catch (Exception e) { log.error("Error stopping deleteMaster: "+e, e); }
+                try {
+                    deleteMaster.stop();
+                } catch (Exception e) {
+                    log.error("Error stopping deleteMaster.", e);
+                }
             }
         }
     }

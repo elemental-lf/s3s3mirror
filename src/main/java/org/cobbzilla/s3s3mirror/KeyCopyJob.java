@@ -1,10 +1,12 @@
 package org.cobbzilla.s3s3mirror;
 
 import com.amazonaws.ResetException;
+import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.model.*;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 
+import java.io.FileNotFoundException;
 import java.util.Date;
 
 /**
@@ -35,25 +37,25 @@ public class KeyCopyJob extends KeyJob {
             if (!shouldTransfer()) return;
 
             if (options.isDryRun()) {
-                log.info("Would have copied " + key + " to destination: " + keydest);
+                log.info("Would have copied {} to destination {}.", key, keydest);
             } else {
-                if (keyCopied()) {
+                if (copyKey()) {
                     context.getStats().objectsCopied.incrementAndGet();
                 } else {
                     context.getStats().copyErrors.incrementAndGet();
                 }
             }
         } catch (Exception e) {
-            log.error("error copying key: " + key + ": " + e);
+            log.error("Error copying key {}.", key, e);
         } finally {
             synchronized (notifyLock) {
                 notifyLock.notifyAll();
             }
-            if (options.isVerbose()) log.info("done with " + key);
+            if (options.isVerbose()) log.info("Done with {}.", key);
         }
     }
 
-    boolean keyCopied() {
+    boolean copyKey() {
         String key = summary.getKey();
         MirrorOptions options = context.getOptions();
         boolean verbose = options.isVerbose();
@@ -63,8 +65,8 @@ public class KeyCopyJob extends KeyJob {
         final ObjectMetadata sourceMetadata;
         try {
             sourceMetadata = getSourceObjectMetadata(key);
-        } catch (Exception e) {
-            log.error("Error getting metadata for key {}.", key, e);
+        } catch (FileNotFoundException e) {
+            log.error("Key {} not found anymore.", key, e);
             return false;
         }
         if (verbose) logMetadata("source", sourceMetadata);
@@ -73,8 +75,6 @@ public class KeyCopyJob extends KeyJob {
 
         boolean copyOkay = false;
         for (int tries = 1; tries <= maxRetries; tries++) {
-
-
             S3ObjectInputStream objectStream = null;
             try {
             	if (useCopy()) {
@@ -92,7 +92,7 @@ public class KeyCopyJob extends KeyJob {
                         final AccessControlList objectAcl = getSourceAccessControlList(key);
                         copyRequest.setAccessControlList(objectAcl);
                     }
-                    
+
                     stats.s3copyCount.incrementAndGet();
                     context.getSourceClient().copyObject(copyRequest);
 
@@ -124,23 +124,21 @@ public class KeyCopyJob extends KeyJob {
 
             	stats.bytesCopied.addAndGet(getRealObjectSize(sourceMetadata));
 
-                
+
                 copyOkay = true;
                 break;
             } catch (ResetException e) {
                 // ResetException can occur when there is a transient, retryable failure.
                 if (verbose) log.info("Reset exception copying to {} (try#{}).", keydest, tries, e);
-            } catch (AmazonS3Exception e) {
-                log.error("S3 exception copying to {} (try#{}).", keydest, tries, e);
-            } catch (Exception e) {
-                log.error("Unexpected exception uploading to {} (try#{}).", keydest, tries, e);
+            } catch (SdkClientException e) {
+                log.error("Client exception copying to {} (try#{}).", keydest, tries, e);
             } finally {
                 if (objectStream != null) {
                     this.closeS3ObjectInputStream(objectStream);
                 }
             }
 
-            if (Sleep.sleep(50)) break;
+            if (tries < maxRetries && Sleep.sleep(50)) break;
         }
 
         if (!copyOkay) {
@@ -173,16 +171,11 @@ public class KeyCopyJob extends KeyJob {
         final ObjectMetadata destinationMetadata;
         try {
             destinationMetadata = getDestinationObjectMetadata(keydest);
-        } catch (AmazonS3Exception e) {
-            if (e.getStatusCode() == 404) {
-                if (verbose) log.info("Key not found in destination bucket (will copy): "+ keydest);
-                return true;
-            } else {
-                log.warn("Error getting metadata for " + options.getDestinationBucket() + "/" + keydest + " (not copying): " + e);
-                return false;
-            }
-        } catch (Exception e) {
-            log.warn("Error getting metadata for " + options.getDestinationBucket() + "/" + keydest + " (not copying): " + e);
+        } catch (FileNotFoundException e) {
+            if (verbose) log.info("Key {} not found in destination bucket (will copy).", keydest);
+            return true;
+        } catch (SdkClientException e) {
+            log.warn("Error getting metadata for {}/{} (not copying).", options.getDestinationBucket(), keydest, e);
             return false;
         }
 
@@ -190,16 +183,11 @@ public class KeyCopyJob extends KeyJob {
             final ObjectMetadata sourceMetadata;
             try {
                 sourceMetadata = getSourceObjectMetadata(key);
-            } catch (AmazonS3Exception e) {
-                if (e.getStatusCode() == 404) {
-                    if (verbose) log.info("Key {}/{} not found in source bucket anymore (not copying).",
-                            options.getSourceBucket(), key);
-                    return false;
-                } else {
-                    log.warn("Error getting metadata for {}/{} (not copying).", options.getSourceBucket(), key, e);
-                    return false;
-                }
-            } catch (Exception e) {
+            } catch (FileNotFoundException e) {
+                if (verbose) log.info("Key {}/{} not found in source bucket anymore (not copying).",
+                        options.getSourceBucket(), key);
+                return false;
+            } catch (SdkClientException e) {
                 log.warn("Error getting metadata for {}/{} (not copying).", options.getSourceBucket(), key, e);
                 return false;
             }

@@ -1,9 +1,11 @@
 package org.cobbzilla.s3s3mirror;
 
 import com.amazonaws.ResetException;
+import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.model.*;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -39,12 +41,12 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
     }
 
     @Override
-    boolean keyCopied() {
+    boolean copyKey() {
     	String key = summary.getKey();
         MirrorOptions options = context.getOptions();
         boolean verbose = options.isVerbose();
         String sourceBucket = options.getSourceBucket();
-        int maxPartRetries = options.getMaxRetries();
+        int maxRetries = options.getMaxRetries();
         MirrorStats stats = context.getStats();
         String destinationBucket = options.getDestinationBucket();
 
@@ -52,8 +54,8 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
         final ObjectMetadata sourceMetadata;
         try {
             sourceMetadata = getSourceObjectMetadata(key);
-        } catch (Exception e) {
-            log.error("Error getting metadata for key {}.", key, e);
+        } catch (FileNotFoundException e) {
+            log.error("Key {} not found anymore.", key, e);
             return false;
         }
         long objectSize = getRealObjectSize(sourceMetadata);
@@ -100,7 +102,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                 setupSSEEncryption(copyRequest, context.getSourceSSEKey(), context.getDestinationSSEKey());
 
                 boolean copyPartOkay = false;
-                for (int tries = 1; tries <= maxPartRetries; tries++) {
+                for (int tries = 1; tries <= maxRetries; tries++) {
                     try {
                         if (verbose) log.info("Copying to {}: {} to {} (currentPartSize {}, try#{})", keydest, bytePosition, lastByte,
                                 currentPartSize, tries);
@@ -116,13 +118,11 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                     } catch (ResetException e) {
                         // ResetException can occur when there is a transient, retryable failure.
                         if (verbose) log.info("Reset exception copying to {} (try#{}).", keydest, tries, e);
-                    } catch (AmazonS3Exception e) {
-                        log.error("S3 exception copying from to {} (try#{}).", keydest, tries, e);
-                    } catch (Exception e) {
-                        log.error("Unexpected exception copying to {} (try#{}).", keydest, tries, e);
+                    } catch (SdkClientException e) {
+                        log.error("Client exception copying from to {} (try#{}).", keydest, tries, e);
                     }
 
-                    if (Sleep.sleep(50)) break;
+                    if (tries < maxRetries && Sleep.sleep(50)) break;
                 }
 
                 if (!copyPartOkay) {
@@ -143,7 +143,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
             S3Object object = context.getSourceClient().getObject(getRequest);
 
             boolean uploadOkay = false;
-            for (int tries = 1; tries <= maxPartRetries; tries++) {
+            for (int tries = 1; tries <= maxRetries; tries++) {
                 S3ObjectInputStream objectStream = null;
                 try {
                     if (verbose) log.info("try :" + tries);
@@ -198,27 +198,20 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                     partETags.clear();
                     // ResetException can occur when there is a transient, retryable failure.
                     if (verbose) log.info("Reset exception uploading to {} (try#{}).", keydest, tries, e);
-                } catch (AmazonS3Exception e) {
+                } catch (SdkClientException e) {
                     if (initResult != null) {
                         context.getDestinationClient().abortMultipartUpload(new AbortMultipartUploadRequest(
                                 destinationBucket, keydest, initResult.getUploadId()));
                     }
                     partETags.clear();
-                    log.error("S3 exception uploading to {} (try#{}).", keydest, tries, e);
-                } catch (Exception e) {
-                    if (initResult != null) {
-                        context.getDestinationClient().abortMultipartUpload(new AbortMultipartUploadRequest(
-                                destinationBucket, keydest, initResult.getUploadId()));
-                    }
-                    partETags.clear();
-                    log.error("Unexpected exception uploading to {} (try#{}).", keydest, tries, e);
+                    log.error("Client exception uploading to {} (try#{}).", keydest, tries, e);
                 } finally {
                     if (objectStream != null) {
                         this.closeS3ObjectInputStream(objectStream);
                     }
                 }
 
-                if (Sleep.sleep(50)) break;
+                if (tries < maxRetries && Sleep.sleep(50)) break;
             }
 
             if (!uploadOkay) {

@@ -58,13 +58,13 @@ public abstract class KeyMaster implements Runnable {
         } finally {
             if (!isDone()) {
                 try {
-                    log.warn(name+" didn't stop within "+STOP_TIMEOUT_SECONDS+" after interrupting it, forcibly killing the thread...");
+                    log.warn("{} didn't stop within {} after interrupting it, forcibly killing the thread.", name, STOP_TIMEOUT_SECONDS);
                     this.thread.stop();
                 } catch (Exception e) {
-                    log.error("Error calling Thread.stop on " + name + ": " + e, e);
+                    log.error("Error calling Thread.stop on {}.", name, e);
                 }
             }
-            if (isDone()) log.info(name+" stopped");
+            if (isDone()) log.info("{} stopped.", name);
         }
     }
 
@@ -102,7 +102,7 @@ public abstract class KeyMaster implements Runnable {
             executorService.submit(lister);
 
             List<KeyObjectSummary> summaries = lister.getNextBatch();
-            if (verbose) log.info(summaries.size()+" keys found in first batch from bucket -- processing...");
+            if (verbose) log.info("{} keys found in first batch from bucket -- processing...", summaries.size());
 
             while (true) {
                 for (KeyObjectSummary summary : summaries) {
@@ -119,12 +119,11 @@ public abstract class KeyMaster implements Runnable {
 
                 summaries = lister.getNextBatch();
                 if (summaries.size() > 0) {
-                    if (verbose) log.info(summaries.size()+" more keys found in bucket -- continuing (queue size="+workQueue.size()+", total processed="+counter+")...");
+                    if (verbose) log.info(" more keys found in bucket -- continuing (queue size="+workQueue.size()+", total processed="+counter+")...", summaries.size());
 
                 } else if (lister.isDone()) {
                     if (verbose) log.info("No more keys found in source bucket -- ALL DONE");
                     return;
-
                 } else {
                     if (verbose) log.info("Lister has no keys queued, but is not done, waiting and retrying");
                     if (Sleep.sleep(50)) return;
@@ -132,8 +131,7 @@ public abstract class KeyMaster implements Runnable {
             }
 
         } catch (Exception e) {
-            log.error("Unexpected exception in MirrorMaster: "+e, e);
-
+            log.error("Unexpected exception in MirrorMaster.", e);
         } finally {
             while (workQueue.size() > 0 || executorService.getActiveCount() > 0) {
                 // wait for the queue to be empty

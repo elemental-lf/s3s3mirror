@@ -9,6 +9,7 @@ import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.SecretKeySpec;
+import java.security.GeneralSecurityException;
 import java.security.spec.KeySpec;
 import java.util.ArrayList;
 
@@ -35,8 +36,8 @@ public class MirrorProfile implements AWSCredentials {
     public void setEncryption(String encryptionName) {
         try {
             this.encryption = MirrorEncryption.valueOf(encryptionName);
-        } catch (Exception e) {
-            throw new IllegalStateException("Unknown encryption method: " + encryptionName);
+        } catch (IllegalArgumentException e) {
+            throw new IllegalStateException("Unknown encryption method: " + encryptionName, e);
         }
     }
 
@@ -50,8 +51,8 @@ public class MirrorProfile implements AWSCredentials {
             KeySpec spec = new PBEKeySpec(passphrase.toCharArray(), salt, 65536, 256);
             SecretKey derivedKey = factory.generateSecret(spec);
             return new SecretKeySpec(derivedKey.getEncoded(), "AES");
-        } catch (Exception e) {
-            throw new IllegalStateException("Could not derive key", e);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalStateException("Could not derive key from key material.", e);
         }
     }
 

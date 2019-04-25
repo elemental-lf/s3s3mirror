@@ -1,5 +1,6 @@
 package org.cobbzilla.s3s3mirror;
 
+import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.Headers;
 import com.amazonaws.services.s3.model.*;
@@ -10,6 +11,7 @@ import org.apache.commons.collections4.MapUtils;
 import org.slf4j.Logger;
 
 import java.io.ByteArrayOutputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.charset.Charset;
@@ -36,13 +38,14 @@ public abstract class KeyJob implements Runnable {
 
     @Override public String toString() { return summary.getKey(); }
 
-    private ObjectMetadata getObjectMetadata(AmazonS3 client, SSECustomerKey sseKey, String bucket, String key) throws Exception {
+    private ObjectMetadata getObjectMetadata(AmazonS3 client, SSECustomerKey sseKey, String bucket, String key) throws FileNotFoundException {
         MirrorOptions options = context.getOptions();
         boolean verbose = options.isVerbose();
+        int maxRetries = options.getMaxRetries();
 
-        AmazonS3Exception lastException = null;
+        SdkClientException lastException = null;
         ObjectMetadata metadata = null;
-        for (int tries = 1; tries <= options.getMaxRetries(); tries++) {
+        for (int tries = 1; tries <= maxRetries; tries++) {
             try {
                 GetObjectMetadataRequest getRequest = new GetObjectMetadataRequest(bucket, key);
 
@@ -53,57 +56,59 @@ public abstract class KeyJob implements Runnable {
                 break;
 
             } catch (AmazonS3Exception e) {
-                lastException = e;
                 if (e.getStatusCode() == 404) {
                     // Key not found
-                    break;
+                    throw new FileNotFoundException("Key " + bucket + "/" + key + " not found.");
                 } else {
                     // Ignore and try again
+                    lastException = e;
                     if (verbose) log.warn("GetObjectMetadataRequest for {} failed (try #{}).", key, tries, e);
                 }
+            } catch (SdkClientException e) {
+                lastException = e;
+                if (verbose) log.warn("GetObjectMetadataRequest for {} failed (try #{}).", key, tries, e);
             }
 
-            if (Sleep.sleep(10)) break;
+            if (tries < maxRetries && Sleep.sleep(10)) break;
         }
 
         if (metadata != null) {
             return metadata;
-        } else if (lastException.getStatusCode() == 404) {
-            throw lastException;
         } else {
             log.error("getObjectMetadata for {} failed after {} tries, giving up.", key, options.getMaxRetries(), lastException);
             throw lastException;
         }
     }
 
-    protected ObjectMetadata getSourceObjectMetadata(String key) throws Exception {
+    protected ObjectMetadata getSourceObjectMetadata(String key) throws FileNotFoundException {
     	return getObjectMetadata(context.getSourceClient(), context.getSourceSSEKey(),
                 context.getOptions().getSourceBucket(), key);
     }
 
-    protected ObjectMetadata getDestinationObjectMetadata(String key) throws Exception {
+    protected ObjectMetadata getDestinationObjectMetadata(String key) throws FileNotFoundException {
     	return getObjectMetadata(context.getDestinationClient(), context.getDestinationSSEKey(),
                 context.getOptions().getDestinationBucket(), key);
     }
 
-    private AccessControlList getAccessControlList(AmazonS3 client, SSECustomerKey sseKey, String bucket, String key) throws Exception {
+    private AccessControlList getAccessControlList(AmazonS3 client, SSECustomerKey sseKey, String bucket, String key) {
         MirrorOptions options = context.getOptions();
         boolean verbose = options.isVerbose();
+        int maxRetries = options.getMaxRetries();
 
         AccessControlList acl = null;
-        for (int tries = 1; tries <= options.getMaxRetries(); tries++) {
+        for (int tries = 1; tries <= maxRetries; tries++) {
             try {
                 GetObjectAclRequest getObject = new GetObjectAclRequest(bucket, key);
 
                 context.getStats().s3getCount.incrementAndGet();
                 acl = client.getObjectAcl(getObject);
                 break;
-            } catch (AmazonS3Exception se3) {
+            } catch (SdkClientException se3) {
                 // Ignore and try again
-                if (verbose) log.warn("GetObjectAclRequest for {} failed (try #{})", key, tries);
+                if (verbose) log.warn("GetObjectAclRequest for {} failed (try #{}).", key, tries);
             }
 
-            if (Sleep.sleep(10)) break;
+            if (tries < maxRetries && Sleep.sleep(10)) break;
         }
 
         if (acl != null) {
@@ -119,7 +124,7 @@ public abstract class KeyJob implements Runnable {
 
     }
 
-    protected AccessControlList getSourceAccessControlList(String key) throws Exception {
+    protected AccessControlList getSourceAccessControlList(String key) {
     	return this.getAccessControlList(context.getSourceClient(), context.getSourceSSEKey(), context.getOptions().getSourceBucket(), key);
     }
 

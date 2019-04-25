@@ -1,10 +1,13 @@
 package org.cobbzilla.s3s3mirror;
 
+import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.DeleteObjectRequest;
 import com.amazonaws.services.s3.model.ObjectMetadata;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
+
+import java.io.FileNotFoundException;
 
 @Slf4j
 public class KeyDeleteJob extends KeyJob {
@@ -37,40 +40,39 @@ public class KeyDeleteJob extends KeyJob {
             final DeleteObjectRequest request = new DeleteObjectRequest(options.getDestinationBucket(), key);
 
             if (options.isDryRun()) {
-                log.info("Would have deleted "+key+" from destination because "+keysrc+" does not exist in source");
+                log.info("Would have deleted {} from destination because {} does not exist in source bucket.", key, keysrc);
             } else {
                 boolean deletedOK = false;
-                for (int tries=0; tries<maxRetries; tries++) {
-                    if (verbose) log.info("deleting (try #"+tries+"): "+key);
+                for (int tries = 1; tries <= maxRetries; tries++) {
+                    if (verbose) log.info("Deleting {} (try #{}).", key, tries);
                     try {
                         stats.s3deleteCount.incrementAndGet();
                         context.getDestinationClient().deleteObject(request);
                         deletedOK = true;
-                        if (verbose) log.info("successfully deleted (on try #"+tries+"): "+key);
+                        if (verbose) log.info("Successfully deleted {} (try #{}).", key, tries);
                         break;
 
-                    } catch (AmazonS3Exception s3e) {
+                    } catch (AmazonS3Exception e) {
                         // This is really ugly: The AWS Java SDK tries to delete a special key containing optional encryption
                         // materials when deleting the corresponding key and CSE is used. At least with Google's server
                         // implementation this leads to an exception which we try to detect here and then go on to ignore
                         // this error.
                         // 404 is NoSuchKey
                         // "No such object: to-bucket/testDeleteRemoved_Jwp9wSm2zf_1523361645785-dest0.instruction"
-                        if (s3e.getStatusCode() == 404 &&
-                                s3e.getAdditionalDetails() != null &&
-                                s3e.getAdditionalDetails().containsKey("Details") &&
-                                s3e.getAdditionalDetails().get("Details").matches("^No such object: .*\\.instruction$")) {
+                        if (e.getStatusCode() == 404 &&
+                                e.getAdditionalDetails() != null &&
+                                e.getAdditionalDetails().containsKey("Details") &&
+                                e.getAdditionalDetails().get("Details").matches("^No such object: .*\\.instruction$")) {
                             deletedOK = true;
                             break;
                         }
 
-                        log.error("s3 exception deleting (try #"+tries+") "+key+": "+s3e);
-
-                    } catch (Exception e) {
-                        log.error("unexpected exception deleting (try #"+tries+") "+key+": "+e);
+                        log.error("S3 exception deleting {} (try #{}).", key, tries, e);
+                    } catch (SdkClientException e) {
+                        log.error("Client exception deleting {} (try #{}).", key, tries, e);
                     }
 
-                    if (Sleep.sleep(10)) break;
+                    if (tries < maxRetries && Sleep.sleep(10)) break;
                 }
                 if (deletedOK) {
                     context.getStats().objectsDeleted.incrementAndGet();
@@ -80,13 +82,13 @@ public class KeyDeleteJob extends KeyJob {
             }
 
         } catch (Exception e) {
-            log.error("error deleting key: "+key+": "+e);
+            log.error("Error deleting key {}.", key, e);
 
         } finally {
             synchronized (notifyLock) {
                 notifyLock.notifyAll();
             }
-            if (verbose) log.info("done with "+key);
+            if (verbose) log.info("Done with {}.", key);
         }
     }
 
@@ -101,16 +103,11 @@ public class KeyDeleteJob extends KeyJob {
 			ObjectMetadata metadata = getSourceObjectMetadata(keysrc);
             return false; // object exists in source bucket, don't delete it from destination bucket
 
-        } catch (AmazonS3Exception e) {
-            if (e.getStatusCode() == 404) {
-                if (verbose) log.info("Key not found in source bucket (will delete from destination): "+ keysrc);
-                return true;
-            } else {
-                log.warn("Error getting metadata for " + options.getSourceBucket() + "/" + keysrc + " (not deleting): " + e);
-                return false;
-            }
-        } catch (Exception e) {
-            log.warn("Error getting metadata for " + options.getSourceBucket() + "/" + keysrc + " (not deleting): " + e);
+        } catch (FileNotFoundException e) {
+            if (verbose) log.info("Key {} not found in source bucket (will delete from destination).", keysrc);
+            return true;
+        } catch (SdkClientException e) {
+            log.warn("Error getting metadata for {}/{} (not deleting).", options.getSourceBucket(), keysrc, e);
             return false;
         }
     }

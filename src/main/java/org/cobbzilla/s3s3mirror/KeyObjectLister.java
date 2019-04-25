@@ -1,8 +1,8 @@
 package org.cobbzilla.s3s3mirror;
 
+import com.amazonaws.SdkClientException;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.internal.Constants;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.ListObjectsRequest;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
@@ -53,7 +53,7 @@ public class KeyObjectLister extends KeyLister {
         final MirrorOptions options = context.getOptions();
         final boolean verbose = options.isVerbose();
         int counter = 0;
-        log.info("starting...");
+        log.info("Starting...");
         try {
             while (true) {
                 while (getSize() < maxQueueCapacity) {
@@ -72,11 +72,11 @@ public class KeyObjectLister extends KeyLister {
                         return;
                     }
                 }
+
                 if (Sleep.sleep(50)) return;
             }
         } catch (Exception e) {
-            log.error("Error in run loop, KeyLister thread now exiting.", e);
-
+            log.error("Error in run loop, KeyLister thread exiting now.", e);
         } finally {
             if (verbose) log.info("KeyLister run loop finished.");
             done.set(true);
@@ -89,21 +89,23 @@ public class KeyObjectLister extends KeyLister {
         final boolean verbose = options.isVerbose();
         final int maxRetries = options.getMaxRetries();
 
-        Exception lastException = null;
+        SdkClientException lastException = null;
         for (int tries = 1; tries <= maxRetries; tries++) {
             try {
                 context.getStats().s3getCount.incrementAndGet();
                 ObjectListing listing = client.listObjects(request);
-                if (verbose) log.info("Successfully got first batch of objects (on try #{}).", tries);
+                if (verbose) log.info("Successfully got first batch of objects (try #{}).", tries);
                 return listing;
 
-            } catch (Exception e) {
+            } catch (SdkClientException e) {
                 lastException = e;
                 log.warn("s3getFirstBatch: Error listing (try #{}).", tries, e);
-                if (Sleep.sleep(50)) break;
             }
+
+            if (tries < maxRetries && Sleep.sleep(50)) break;
         }
-        throw new IllegalStateException("s3getFirstBatch failed even after " + maxRetries + ": " + lastException + ".");
+
+        throw new IllegalStateException("s3getFirstBatch failed even after " + maxRetries + ".", lastException);
     }
 
     private ObjectListing s3getNextBatch() {
@@ -111,6 +113,7 @@ public class KeyObjectLister extends KeyLister {
         final boolean verbose = options.isVerbose();
         final int maxRetries = options.getMaxRetries();
 
+        SdkClientException lastException = null;
         for (int tries = 1; tries <= maxRetries; tries++) {
             try {
                 context.getStats().s3getCount.incrementAndGet();
@@ -118,15 +121,15 @@ public class KeyObjectLister extends KeyLister {
                 if (verbose) log.info("Successfully got next batch of objects (on try #{}).", tries);
                 return next;
 
-            } catch (AmazonS3Exception s3e) {
-                log.error("S3 exception listing objects (try #{}).", tries, s3e);
-
-            } catch (Exception e) {
-                log.error("Unexpected exception listing objects (try #{}).", tries, e);
+            } catch (SdkClientException e) {
+                lastException = e;
+                log.error("Client exception listing objects (try #{}).", tries, e);
             }
-            if (Sleep.sleep(50)) break;
+
+            if (tries < maxRetries && Sleep.sleep(50)) break;
         }
-        throw new IllegalStateException("Too many errors trying to list objects (maxRetries="+maxRetries+").");
+
+        throw new IllegalStateException("Too many errors trying to list objects (maxRetries="+maxRetries+").", lastException);
     }
 
     @Override
