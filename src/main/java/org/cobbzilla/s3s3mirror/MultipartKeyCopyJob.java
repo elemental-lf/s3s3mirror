@@ -87,8 +87,6 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
             	long lastByte = Math.min(objectSize - 1, bytePosition + partSize - 1);
             	long currentPartSize = Math.min(objectSize - bytePosition, partSize);
             
-
-
                 CopyPartRequest copyRequest = new CopyPartRequest()
                 							  .withDestinationBucketName(destinationBucket)
                 							  .withDestinationKey(keydest)
@@ -98,7 +96,6 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                 							  .withFirstByte(bytePosition)
                 							  .withLastByte(lastByte)
                 							  .withPartNumber(i);
-
                 setupSSEEncryption(copyRequest, context.getSourceSSEKey(), context.getDestinationSSEKey());
 
                 boolean copyPartOkay = false;
@@ -136,11 +133,7 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
             }
         } else {
             final GetObjectRequest getRequest =  new GetObjectRequest(sourceBucket, key);
-
             setupSSEEncryption(getRequest, context.getSourceSSEKey());
-
-            stats.s3getCount.incrementAndGet();
-            S3Object object = context.getSourceClient().getObject(getRequest);
 
             boolean uploadOkay = false;
             for (int tries = 1; tries <= maxRetries; tries++) {
@@ -154,7 +147,11 @@ public class MultipartKeyCopyJob extends KeyCopyJob {
                      * package private there :(
                      */
                     initResult = setupMultipartUpload(destinationMetadata, destinationAcl);
+
+                    stats.s3getCount.incrementAndGet();
+                    S3Object object = context.getSourceClient().getObject(getRequest);
                     objectStream = object.getObjectContent();
+
                     long bytePosition = 0;
                     for (int i = 1; bytePosition < objectSize; i++) {
                         long lastByte = Math.min(objectSize - 1, bytePosition + partSize - 1);
